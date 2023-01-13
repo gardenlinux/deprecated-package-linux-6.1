@@ -1,0 +1,103 @@
+From d8b8b8be3d72a769cd0ae179a0cc536b3a63164b Mon Sep 17 00:00:00 2001
+From: Tianfei zhang <tianfei.zhang@intel.com>
+Date: Mon, 9 Aug 2021 09:17:25 +0800
+Subject: [PATCH 64/93] fpga: m10bmc-sec: add fpga_boot_image
+
+Add the fpga_boot_image sysfs node to indicate which image FPGA was loaded
+when the FPGA booted.
+
+Signed-off-by: Tianfei zhang <tianfei.zhang@intel.com>
+---
+ .../sysfs-driver-intel-m10-bmc-sec-update     |  8 +++++
+ drivers/fpga/intel-m10-bmc-sec-update.c       | 29 ++++++++++++++++++-
+ include/linux/mfd/intel-m10-bmc.h             |  4 +++
+ 3 files changed, 40 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-sec-update b/Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-sec-update
+index 7ff3b65b595b..ab8e90380e8d 100644
+--- a/Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-sec-update
++++ b/Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-sec-update
+@@ -108,3 +108,11 @@ Description:	Read/Write. A key word from the available_fpga_images file
+ 		attempt to select an unsupported image or fall-back sequence.
+ 		Consult your product documentation for supported
+ 		configurations.
++
++What:           /sys/bus/platform/drivers/intel-m10bmc-sec-update/.../control/fpga_boot_image
++Date:		Nov 2021
++KernelVersion:  5.16
++Contact:	Tianfei zhang <tianfei.zhang@intel.com>
++Description:	Read-only. Reading this file will return the name of image booted
++		from FPGA. The EINVAL error code will be returned if no image booted
++		from FPGA.
+diff --git a/drivers/fpga/intel-m10-bmc-sec-update.c b/drivers/fpga/intel-m10-bmc-sec-update.c
+index 893feb7f6af6..a24755c31c6d 100644
+--- a/drivers/fpga/intel-m10-bmc-sec-update.c
++++ b/drivers/fpga/intel-m10-bmc-sec-update.c
+@@ -711,6 +711,31 @@ power_on_image_store(struct device *dev,
+ }
+ static DEVICE_ATTR_RW(power_on_image);
+ 
++static ssize_t
++fpga_boot_image_show(struct device *dev,
++		     struct device_attribute *attr, char *buf)
++{
++	struct m10bmc_sec *sec = dev_get_drvdata(dev);
++	int ret;
++	u32 status;
++	int boot_page;
++
++	ret = m10bmc_sys_read(sec->m10bmc, m10bmc_base(sec->m10bmc) +
++			      M10BMC_PMCI_FPGA_CONF_STS, &status);
++	if (ret)
++		return ret;
++
++	if (!FIELD_GET(PMCI_FPGA_CONFIGED, status))
++		return -EINVAL;
++
++	boot_page = FIELD_GET(PMCI_FPGA_BOOT_PAGE, status);
++	if (boot_page >= FPGA_MAX)
++		return -EINVAL;
++
++	return sysfs_emit(buf, "%s\n", fpga_image_names[boot_page]);
++}
++static DEVICE_ATTR_RO(fpga_boot_image);
++
+ static const struct fpga_power_on pmci_power_on_image = {
+ 	.avail_image_mask = BIT(FPGA_FACTORY) | BIT(FPGA_USER1) | BIT(FPGA_USER2),
+ 	.set_sequence = pmci_set_power_on_image,
+@@ -762,7 +787,8 @@ m10bmc_is_visible(struct kobject *kobj,
+ 
+ 	if ((sec->type != N6000BMC_SEC) &&
+ 	    (attr == &dev_attr_power_on_image.attr ||
+-	     attr == &dev_attr_available_power_on_images.attr))
++	     attr == &dev_attr_available_power_on_images.attr ||
++	     attr == &dev_attr_fpga_boot_image.attr))
+ 		return 0;
+ 
+ 	return attr->mode;
+@@ -773,6 +799,7 @@ static struct attribute *m10bmc_control_attrs[] = {
+ 	&dev_attr_image_load.attr,
+ 	&dev_attr_power_on_image.attr,
+ 	&dev_attr_available_power_on_images.attr,
++	&dev_attr_fpga_boot_image.attr,
+ 	NULL,
+ };
+ 
+diff --git a/include/linux/mfd/intel-m10-bmc.h b/include/linux/mfd/intel-m10-bmc.h
+index d8fb8eb8f11b..b25097cc3147 100644
+--- a/include/linux/mfd/intel-m10-bmc.h
++++ b/include/linux/mfd/intel-m10-bmc.h
+@@ -208,6 +208,10 @@ enum m10bmc_type {
+ #define PMCI_MAX10_REBOOT_REQ BIT(0)
+ #define PMCI_MAX10_REBOOT_PAGE BIT(1)
+ 
++#define M10BMC_PMCI_FPGA_CONF_STS 0xa0
++#define PMCI_FPGA_BOOT_PAGE  GENMASK(2, 0)
++#define PMCI_FPGA_CONFIGED   BIT(3)
++
+ #define M10BMC_PMCI_FPGA_POC	0xb0
+ #define PMCI_FPGA_POC		BIT(0)
+ #define PMCI_NIOS_REQ_CLEAR	BIT(1)
+-- 
+2.39.0
+

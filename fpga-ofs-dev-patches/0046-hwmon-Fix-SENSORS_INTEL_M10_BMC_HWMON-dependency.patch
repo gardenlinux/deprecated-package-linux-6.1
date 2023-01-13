@@ -1,0 +1,29 @@
+From e844c729fdc33c900dd608e743d222023c1700cc Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Thu, 25 Mar 2021 09:07:37 -0700
+Subject: [PATCH 46/93] hwmon: Fix SENSORS_INTEL_M10_BMC_HWMON dependency
+
+The SENSORS_INTEL_M10_BMC_HWMON config option has a dependency on
+MFD_INTEL_M10_BMC which has been renamed to MFD_INTEL_M10_BMC_CORE.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/hwmon/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/hwmon/Kconfig b/drivers/hwmon/Kconfig
+index 7ac3daaf59ce..984a55e0f313 100644
+--- a/drivers/hwmon/Kconfig
++++ b/drivers/hwmon/Kconfig
+@@ -2321,7 +2321,7 @@ config SENSORS_XGENE
+ 
+ config SENSORS_INTEL_M10_BMC_HWMON
+ 	tristate "Intel MAX10 BMC Hardware Monitoring"
+-	depends on MFD_INTEL_M10_BMC
++	depends on MFD_INTEL_M10_BMC_CORE
+ 	help
+ 	  This driver provides support for the hardware monitoring functionality
+ 	  on Intel MAX10 BMC chip.
+-- 
+2.39.0
+

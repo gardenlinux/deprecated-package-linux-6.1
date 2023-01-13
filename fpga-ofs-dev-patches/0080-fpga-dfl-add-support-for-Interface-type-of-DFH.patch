@@ -1,0 +1,90 @@
+From 6df395fd105b54be12236b97035bad8b600ffee6 Mon Sep 17 00:00:00 2001
+From: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+Date: Tue, 12 Apr 2022 16:09:06 -0700
+Subject: [PATCH 80/93] fpga: dfl: add support for Interface type of DFH
+
+Add support for a new type of Device Feature Header (DFH), Interface.
+An interface DFH is considered a child of the FIU, AFU, and Private feature
+and is ignored by the DFL bus code.
+
+Signed-off-by: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+---
+ drivers/fpga/dfl.c | 32 +++++++++++++++++++++++++++++---
+ drivers/fpga/dfl.h |  1 +
+ 2 files changed, 30 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/fpga/dfl.c b/drivers/fpga/dfl.c
+index eefa7c668d26..0eb54287a08f 100644
+--- a/drivers/fpga/dfl.c
++++ b/drivers/fpga/dfl.c
+@@ -964,11 +964,30 @@ static void build_info_free(struct build_feature_devs_info *binfo)
+ 	devm_kfree(binfo->dev, binfo);
+ }
+ 
+-static inline u32 feature_size(u64 value)
++static inline u32 feature_size(void __iomem *dfh_ioaddr, void __iomem *end, u64 value)
+ {
+ 	u32 ofst = FIELD_GET(DFH_NEXT_HDR_OFST, value);
+ 	/* workaround for private features with invalid size, use 4K instead */
+-	return ofst ? ofst : 4096;
++	if (!ofst)
++		return 4096;
++
++	if (value & DFH_EOL)
++		return ofst;
++
++	do {
++		value = readq(dfh_ioaddr + ofst);
++
++		if (FIELD_GET(DFH_TYPE, value) != DFH_TYPE_INTERFACE)
++			return ofst;
++
++		ofst += FIELD_GET(DFH_NEXT_HDR_OFST, value);
++
++		if (value & DFH_EOL)
++			return ofst;
++
++	} while ((dfh_ioaddr + ofst) < end);
++
++	return 0;
+ }
+ 
+ static u16 feature_id(u64 value)
+@@ -1098,7 +1117,12 @@ create_feature_instance(struct build_feature_devs_info *binfo,
+ 		dfh_version = FIELD_GET(DFH_VERSION, v);
+ 
+ 		/* read feature size and id if inputs are invalid */
+-		size = size ? size : feature_size(v);
++		size = size ? size : feature_size(binfo->ioaddr + ofst,
++						  binfo->ioaddr + binfo->len, v);
++		if (!size) {
++			dev_err(binfo->dev, "illegal feature with size of 0\n");
++			return -EINVAL;
++		}
+ 		fid = fid ? fid : feature_id(v);
+ 	}
+ 
+@@ -1296,6 +1320,8 @@ static int parse_feature(struct build_feature_devs_info *binfo,
+ 		return parse_feature_private(binfo, ofst);
+ 	case DFH_TYPE_FIU:
+ 		return parse_feature_fiu(binfo, ofst);
++	case DFH_TYPE_INTERFACE:
++		break;
+ 	default:
+ 		dev_info(binfo->dev,
+ 			 "Feature Type %x is not supported.\n", type);
+diff --git a/drivers/fpga/dfl.h b/drivers/fpga/dfl.h
+index c633c347e51e..14abc6f9d91d 100644
+--- a/drivers/fpga/dfl.h
++++ b/drivers/fpga/dfl.h
+@@ -60,6 +60,7 @@
+ #define DFH_TYPE_AFU		1
+ #define DFH_TYPE_PRIVATE	3
+ #define DFH_TYPE_FIU		4
++#define DFH_TYPE_INTERFACE	5
+ 
+ /* Next AFU Register Bitfield */
+ #define NEXT_AFU_NEXT_DFH_OFST	GENMASK_ULL(23, 0)	/* Offset to next AFU */
+-- 
+2.39.0
+

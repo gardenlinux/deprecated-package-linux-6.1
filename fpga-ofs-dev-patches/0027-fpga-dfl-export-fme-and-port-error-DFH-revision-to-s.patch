@@ -1,0 +1,83 @@
+From 5ea647cc0598f4524ccb19a33ec77d39cad7dd29 Mon Sep 17 00:00:00 2001
+From: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+Date: Thu, 22 Oct 2020 14:25:27 -0400
+Subject: [PATCH 27/93] fpga: dfl: export fme and port error DFH revision to
+ sysfs
+
+With Intel OFS, the definition of the port error bits have
+changed to reflect the transition from CCI-P to AXI-S TLP.
+Export the DFH revision to sysfs so that user space can
+properly decode the port errors.
+
+Signed-off-by: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+---
+ drivers/fpga/dfl-afu-error.c | 15 +++++++++++++++
+ drivers/fpga/dfl-fme-error.c | 15 +++++++++++++++
+ 2 files changed, 30 insertions(+)
+
+diff --git a/drivers/fpga/dfl-afu-error.c b/drivers/fpga/dfl-afu-error.c
+index 0f392d1f6d45..d2b702e2bc30 100644
+--- a/drivers/fpga/dfl-afu-error.c
++++ b/drivers/fpga/dfl-afu-error.c
+@@ -179,10 +179,25 @@ static ssize_t first_malformed_req_show(struct device *dev,
+ }
+ static DEVICE_ATTR_RO(first_malformed_req);
+ 
++static ssize_t revision_show(struct device *dev, struct device_attribute *attr, char *buf)
++{
++	struct dfl_feature_dev_data *fdata = to_dfl_feature_dev_data(dev);
++	void __iomem *base;
++	u64 dfh;
++
++	base = dfl_get_feature_ioaddr_by_id(fdata, PORT_FEATURE_ID_ERROR);
++
++	dfh = readq(base);
++
++	return sprintf(buf, "%lld\n", FIELD_GET(DFH_REVISION, dfh));
++}
++static DEVICE_ATTR_RO(revision);
++
+ static struct attribute *port_err_attrs[] = {
+ 	&dev_attr_errors.attr,
+ 	&dev_attr_first_error.attr,
+ 	&dev_attr_first_malformed_req.attr,
++	&dev_attr_revision.attr,
+ 	NULL,
+ };
+ 
+diff --git a/drivers/fpga/dfl-fme-error.c b/drivers/fpga/dfl-fme-error.c
+index f00d949efe69..5b063fc82555 100644
+--- a/drivers/fpga/dfl-fme-error.c
++++ b/drivers/fpga/dfl-fme-error.c
+@@ -281,6 +281,20 @@ static ssize_t next_error_show(struct device *dev,
+ }
+ static DEVICE_ATTR_RO(next_error);
+ 
++static ssize_t revision_show(struct device *dev, struct device_attribute *attr, char *buf)
++{
++	struct dfl_feature_dev_data *fdata = to_dfl_feature_dev_data(dev);
++	void __iomem *base;
++	u64 dfh;
++
++	base = dfl_get_feature_ioaddr_by_id(fdata, FME_FEATURE_ID_GLOBAL_ERR);
++
++	dfh = readq(base);
++
++	return sprintf(buf, "%lld\n", FIELD_GET(DFH_REVISION, dfh));
++}
++static DEVICE_ATTR_RO(revision);
++
+ static struct attribute *fme_global_err_attrs[] = {
+ 	&dev_attr_pcie0_errors.attr,
+ 	&dev_attr_pcie1_errors.attr,
+@@ -290,6 +304,7 @@ static struct attribute *fme_global_err_attrs[] = {
+ 	&dev_attr_fme_errors.attr,
+ 	&dev_attr_first_error.attr,
+ 	&dev_attr_next_error.attr,
++	&dev_attr_revision.attr,
+ 	NULL,
+ };
+ 
+-- 
+2.39.0
+

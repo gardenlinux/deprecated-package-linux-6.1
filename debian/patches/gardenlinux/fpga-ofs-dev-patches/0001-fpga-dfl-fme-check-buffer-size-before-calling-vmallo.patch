@@ -1,0 +1,29 @@
+From f974634f02152d85fdb5534713a041c1f3b62edb Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Thu, 22 Jul 2021 16:37:58 -0700
+Subject: [PATCH 01/93] fpga: dfl: fme: check buffer size before calling
+ vmalloc
+
+Test for non-zero port_pr.buffer_size before calling vmalloc.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/fpga/dfl-fme-pr.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/fpga/dfl-fme-pr.c b/drivers/fpga/dfl-fme-pr.c
+index d61ce9a18879..272b3660d5d8 100644
+--- a/drivers/fpga/dfl-fme-pr.c
++++ b/drivers/fpga/dfl-fme-pr.c
+@@ -97,6 +97,8 @@ static int fme_pr(struct platform_device *pdev, unsigned long arg)
+ 		return -EINVAL;
+ 	}
+ 
++	if (port_pr.buffer_size == 0)
++		return -EINVAL;
+ 	/*
+ 	 * align PR buffer per PR bandwidth, as HW ignores the extra padding
+ 	 * data automatically.
+-- 
+2.39.0
+

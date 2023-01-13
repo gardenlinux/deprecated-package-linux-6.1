@@ -1,0 +1,100 @@
+From 99bf4ff0f86b0bed9960b70962ddf358ce2e93ea Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Tue, 5 May 2020 14:30:08 -0700
+Subject: [PATCH 25/93] fpga: m10bmc-sec: Add FPGA image-load triggers
+
+Add support for triggering a new FPGA or BMC image to be loaded from
+the images that have previously been stored in flash. This will allow
+devices to be updated without the need to power-cycle the system.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/fpga/intel-m10-bmc-sec-update.c | 31 +++++++++++++++++++++++--
+ 1 file changed, 29 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/fpga/intel-m10-bmc-sec-update.c b/drivers/fpga/intel-m10-bmc-sec-update.c
+index 5876b9035e46..63397445588d 100644
+--- a/drivers/fpga/intel-m10-bmc-sec-update.c
++++ b/drivers/fpga/intel-m10-bmc-sec-update.c
+@@ -14,6 +14,12 @@
+ #include <linux/platform_device.h>
+ #include <linux/slab.h>
+ 
++/* Supported fpga secure manager types */
++enum fpga_sec_type {
++	N3000BMC_SEC,
++	D5005BMC_SEC,
++};
++
+ struct image_load;
+ 
+ struct m10bmc_sec {
+@@ -246,6 +252,18 @@ static struct image_load n3000_image_load_hndlrs[] = {
+ 	{}
+ };
+ 
++static struct image_load d5005_image_load_hndlrs[] = {
++	{
++		.name = "bmc_factory",
++		.load_image = m10bmc_sec_bmc_image_load_0,
++	},
++	{
++		.name = "bmc_user",
++		.load_image = m10bmc_sec_bmc_image_load_1,
++	},
++	{}
++};
++
+ static DEFINE_XARRAY_ALLOC(fw_upload_xa);
+ 
+ /* Root Entry Hash (REH) support */
+@@ -823,6 +841,8 @@ static const struct fw_upload_ops m10bmc_ops = {
+ #define SEC_UPDATE_LEN_MAX 32
+ static int m10bmc_sec_probe(struct platform_device *pdev)
+ {
++	const struct platform_device_id *id = platform_get_device_id(pdev);
++	enum fpga_sec_type type = (enum fpga_sec_type)id->driver_data;
+ 	char buf[SEC_UPDATE_LEN_MAX];
+ 	struct m10bmc_sec *sec;
+ 	struct fw_upload *fwl;
+@@ -835,7 +855,12 @@ static int m10bmc_sec_probe(struct platform_device *pdev)
+ 
+ 	sec->dev = &pdev->dev;
+ 	sec->m10bmc = dev_get_drvdata(pdev->dev.parent);
+-	sec->image_load = n3000_image_load_hndlrs;
++
++	if (type == N3000BMC_SEC)
++		sec->image_load = n3000_image_load_hndlrs;
++	else
++		sec->image_load = d5005_image_load_hndlrs;
++
+ 	dev_set_drvdata(&pdev->dev, sec);
+ 
+ 	ret = xa_alloc(&fw_upload_xa, &sec->fw_name_id, sec,
+@@ -876,13 +901,14 @@ static int m10bmc_sec_remove(struct platform_device *pdev)
+ static const struct platform_device_id intel_m10bmc_sec_ids[] = {
+ 	{
+ 		.name = "n3000bmc-sec-update",
++		.driver_data = (unsigned long)N3000BMC_SEC,
+ 	},
+ 	{
+ 		.name = "d5005bmc-sec-update",
++		.driver_data = (unsigned long)D5005BMC_SEC,
+ 	},
+ 	{ }
+ };
+-MODULE_DEVICE_TABLE(platform, intel_m10bmc_sec_ids);
+ 
+ static struct platform_driver intel_m10bmc_sec_driver = {
+ 	.probe = m10bmc_sec_probe,
+@@ -895,6 +921,7 @@ static struct platform_driver intel_m10bmc_sec_driver = {
+ };
+ module_platform_driver(intel_m10bmc_sec_driver);
+ 
++MODULE_DEVICE_TABLE(platform, intel_m10bmc_sec_ids);
+ MODULE_AUTHOR("Intel Corporation");
+ MODULE_DESCRIPTION("Intel MAX10 BMC Secure Update");
+ MODULE_LICENSE("GPL");
+-- 
+2.39.0
+

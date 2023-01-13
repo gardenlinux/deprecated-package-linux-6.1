@@ -1,0 +1,306 @@
+From 22f9add1e5818a017d9fb90cc02438ed874ebb82 Mon Sep 17 00:00:00 2001
+From: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+Date: Thu, 24 Feb 2022 11:55:55 -0800
+Subject: [PATCH 75/93] hwmon: intel-m10-bmc: add support for C6100 card.
+
+The C6100 card uses revision 2 of the PMCI sub-system.
+Revision 2 supports a superset of sensors and slightly
+different flash offsets than revision 1.
+
+Signed-off-by: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+---
+ drivers/hwmon/intel-m10-bmc-hwmon.c | 146 ++++++++++++++++++++++++++++
+ drivers/mfd/intel-m10-bmc-core.c    |  40 +++++++-
+ drivers/mfd/intel-m10-bmc-pmci.c    |   5 +-
+ include/linux/mfd/intel-m10-bmc.h   |   2 +
+ 4 files changed, 189 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/hwmon/intel-m10-bmc-hwmon.c b/drivers/hwmon/intel-m10-bmc-hwmon.c
+index 85d1f6e1dca3..c4a08f01fbd8 100644
+--- a/drivers/hwmon/intel-m10-bmc-hwmon.c
++++ b/drivers/hwmon/intel-m10-bmc-hwmon.c
+@@ -679,6 +679,148 @@ static const struct m10bmc_hwmon_board_data n6000bmc_hwmon_bdata = {
+ 	.hinfo = n6000bmc_hinfo,
+ };
+ 
++static const struct m10bmc_sdata c6100bmc_temp_tbl[] = {
++	{ 0x440, 0x0, 0x0, 0x0, 0x0, 500, "FPGA E-TILE Max Temperature" },
++	{ 0x444, 0x448, 0x44c, 0x0, 0x0, 500, "FPGA E-TILE Temperature #1" },
++	{ 0x450, 0x454, 0x458, 0x0, 0x0, 500, "FPGA E-TILE Temperature #2" },
++	{ 0x45c, 0x460, 0x464, 0x0, 0x0, 500, "FPGA E-TILE Temperature #3" },
++	{ 0x468, 0x46c, 0x470, 0x0, 0x0, 500, "FPGA E-TILE Temperature #4" },
++	{ 0x474, 0x478, 0x47c, 0x0, 0x0, 500, "FPGA P-TILE Temperature" },
++	{ 0x5b4, 0x5b8, 0x5bc, 0x0, 0x0, 500, "FPGA P-TILE2 DTS Temperature" },
++	{ 0x480, 0x0, 0x0, 0x0, 0x0, 500, "FPGA FABRIC Max Temperature" },
++	{ 0x484, 0x488, 0x48c, 0x0, 0x0, 500, "FPGA FABRIC Digital Temperature#1" },
++	{ 0x490, 0x494, 0x498, 0x0, 0x0, 500, "FPGA FABRIC Digital Temperature#2" },
++	{ 0x49c, 0x4a0, 0x4a4, 0x0, 0x0, 500, "FPGA FABRIC Digital Temperature#3" },
++	{ 0x4a8, 0x4ac, 0x4b0, 0x0, 0x0, 500, "FPGA FABRIC Digital Temperature#4" },
++	{ 0x4b4, 0x4b8, 0x4bc, 0x0, 0x0, 500, "FPGA FABRIC Digital Temperature#5" },
++	{ 0x4d8, 0x4dc, 0x4e0, 0x0, 0x0, 500, "FPGA FABRIC Remote Digital Temperature#3" },
++	{ 0x4e4, 0x4e8, 0x4ec, 0x0, 0x0, 500, "FPGA FABRIC Remote Digital Temperature#4" },
++	{ 0x4fc, 0x500, 0x504, 0x5c0, 0x0, 500, "Board Bottom Temperature" },
++	{ 0x5e8, 0x5ec, 0x5f0, 0x5c0, 0x0, 500, "FPGA Corner (SDM) Temperature [Remote]" },
++	{ 0x5dc, 0x5e0, 0x5e4, 0x5c0, 0x0, 500, "FPGA Core Fabric Temperature [Remote]" },
++	{ 0x5c4, 0x5c8, 0x5cc, 0x5c0, 0x0, 500, "FPGA P-Tile Temperature [Remote]" },
++	{ 0x5d0, 0x5d4, 0x5d8, 0x5c0, 0x0, 500, "FPGA E-Tile Temperature [Remote]" },
++	{ 0x4f0, 0x4f4, 0x4f8, 0x52c, 0x0, 500, "Board Top Temperature" },
++	{ 0x520, 0x524, 0x528, 0x52c, 0x0, 500, "Board Rear Side Temperature" },
++	{ 0x530, 0x534, 0x538, 0x52c, 0x0, 500, "Board Front Side Temperature" },
++	{ 0x508, 0x50c, 0x510, 0x52c, 0x0, 500, "FPGA Ambient Temperature" },
++	{ 0x514, 0x518, 0x51c, 0x52c, 0x0, 500, "FPGA PTILE2 External Temperature" },
++	{ 0x53c, 0x540, 0x544, 0x0, 0x0, 500, "QSFP1 Temperature" },
++	{ 0x548, 0x54c, 0x550, 0x0, 0x0, 500, "QSFP2 Temperature" },
++	{ 0x728, 0x72c, 0x730, 0x0, 0x0, 500, "Virt FPGA Temperature" },
++	{ 0x758, 0x750, 0x754, 0x0, 0x0, 15, "SOC Package Temperature" },
++};
++
++static const struct m10bmc_sdata c6100bmc_in_tbl[] = {
++	{ 0x5f4, 0x0, 0x0, 0x0, 0x0, 1, "Inlet 12V PCIe Rail Voltage" },
++	{ 0x60c, 0x0, 0x0, 0x0, 0x0, 1, "Inlet 12V Aux Rail Voltage" },
++	{ 0x624, 0x0, 0x0, 0x0, 0x0, 1, "Inlet 3V3 PCIe Rail Voltage" },
++	{ 0x6b4, 0x0, 0x0, 0x0, 0x0, 1, "QSFP 3V3 Rail Voltage" },
++	{ 0x6c4, 0x0, 0x0, 0x0, 0x0, 1, "QSFP (Primary) Supply Rail Voltage" },
++	{ 0x6c8, 0x0, 0x0, 0x0, 0x0, 1, "QSFP (Secondary) Supply Rail Voltage" },
++};
++
++static const struct m10bmc_sdata c6100bmc_curr_tbl[] = {
++	{ 0x600, 0x604, 0x608, 0x0, 0x0, 1, "Inlet 12V PCIe Rail Current" },
++	{ 0x618, 0x61c, 0x620, 0x0, 0x0, 1, "Inlet 12V Aux Rail Current" },
++	{ 0x630, 0x634, 0x638, 0x0, 0x0, 1, "Inlet 3V3 PCIe Rail Current" },
++	{ 0x6b8, 0x6bc, 0x6c0, 0x0, 0x0, 1, "QSFP 3V3 Rail Current" },
++};
++
++static const struct m10bmc_sdata c6100bmc_power_tbl[] = {
++	{ 0x724, 0x0, 0x0, 0x0, 0x0, 1, "Board Power" },
++	{ 0x788, 0x0, 0x0, 0x0, 0x0, 1, "SOC Package Power" },
++	{ 0x694, 0x0, 0x0, 0x0, 0x0, 1, "FPGA Package Power" },
++};
++
++static const struct hwmon_channel_info *c6100bmc_hinfo[] = {
++	HWMON_CHANNEL_INFO(temp,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_CRIT |
++			   HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_MAX_HYST |
++			   HWMON_T_CRIT | HWMON_T_CRIT_HYST | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_MAX_HYST |
++			   HWMON_T_CRIT | HWMON_T_CRIT_HYST | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_MAX_HYST |
++			   HWMON_T_CRIT | HWMON_T_CRIT_HYST | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_MAX_HYST |
++			   HWMON_T_CRIT | HWMON_T_CRIT_HYST | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_MAX_HYST |
++			   HWMON_T_CRIT | HWMON_T_CRIT_HYST | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_MAX_HYST |
++			   HWMON_T_CRIT | HWMON_T_CRIT_HYST | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_MAX_HYST |
++			   HWMON_T_CRIT | HWMON_T_CRIT_HYST | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_MAX_HYST |
++			   HWMON_T_CRIT | HWMON_T_CRIT_HYST | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_MAX_HYST |
++			   HWMON_T_CRIT | HWMON_T_CRIT_HYST | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_MAX | HWMON_T_MAX_HYST |
++			   HWMON_T_CRIT | HWMON_T_CRIT_HYST | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL,
++			   HWMON_T_INPUT | HWMON_T_LABEL),
++	HWMON_CHANNEL_INFO(in,
++			   HWMON_I_INPUT | HWMON_I_LABEL,
++			   HWMON_I_INPUT | HWMON_I_LABEL,
++			   HWMON_I_INPUT | HWMON_I_LABEL,
++			   HWMON_I_INPUT | HWMON_I_LABEL,
++			   HWMON_I_INPUT | HWMON_I_LABEL,
++			   HWMON_I_INPUT | HWMON_I_LABEL),
++	HWMON_CHANNEL_INFO(curr,
++			   HWMON_C_INPUT | HWMON_C_MAX | HWMON_C_CRIT |
++			   HWMON_C_LABEL,
++			   HWMON_C_INPUT | HWMON_C_MAX | HWMON_C_CRIT |
++			   HWMON_C_LABEL,
++			   HWMON_C_INPUT | HWMON_C_MAX | HWMON_C_CRIT |
++			   HWMON_C_LABEL,
++			   HWMON_C_INPUT | HWMON_C_MAX | HWMON_C_CRIT |
++			   HWMON_C_LABEL),
++	HWMON_CHANNEL_INFO(power,
++			   HWMON_P_INPUT | HWMON_P_LABEL,
++			   HWMON_P_INPUT | HWMON_P_LABEL,
++			   HWMON_P_INPUT | HWMON_P_LABEL),
++	NULL
++};
++
++static const struct m10bmc_hwmon_board_data c6100bmc_hwmon_bdata = {
++	.tables = {
++		[hwmon_temp] = c6100bmc_temp_tbl,
++		[hwmon_in] = c6100bmc_in_tbl,
++		[hwmon_curr] = c6100bmc_curr_tbl,
++		[hwmon_power] = c6100bmc_power_tbl,
++	},
++
++	.hinfo = c6100bmc_hinfo,
++};
++
+ static umode_t
+ m10bmc_hwmon_is_visible(const void *data, enum hwmon_sensor_types type,
+ 			u32 attr, int channel)
+@@ -896,6 +1038,10 @@ static const struct platform_device_id intel_m10bmc_hwmon_ids[] = {
+ 		.name = "n6000bmc-hwmon",
+ 		.driver_data = (unsigned long)&n6000bmc_hwmon_bdata,
+ 	},
++	{
++		.name = "c6100bmc-hwmon",
++		.driver_data = (unsigned long)&c6100bmc_hwmon_bdata,
++	},
+ 	{ }
+ };
+ 
+diff --git a/drivers/mfd/intel-m10-bmc-core.c b/drivers/mfd/intel-m10-bmc-core.c
+index 7efea9965a25..8682675d2864 100644
+--- a/drivers/mfd/intel-m10-bmc-core.c
++++ b/drivers/mfd/intel-m10-bmc-core.c
+@@ -35,6 +35,26 @@ static const struct m10bmc_csr m10bmc_pmci_csr = {
+ 	.sr_sdm_csk_reg = M10BMC_PMCI_SR_CSK,
+ };
+ 
++static const struct m10bmc_csr m10bmc_pmci2_csr = {
++	.base = M10BMC_PMCI_SYS_BASE,
++	.build_version = M10BMC_PMCI_BUILD_VER,
++	.fw_version = NIOS2_PMCI_FW_VERSION,
++	.mac_low = M10BMC_PMCI_MAC_LOW,
++	.mac_high = M10BMC_PMCI_MAC_HIGH,
++	.doorbell = M10BMC_PMCI_DOORBELL,
++	.auth_result = M10BMC_PMCI_AUTH_RESULT,
++	.bmc_prog_addr = 0x00830000,
++	.bmc_reh_addr = 0x00830004,
++	.bmc_magic = PMCI_BMC_PROG_MAGIC,
++	.sr_prog_addr = 0x00820000,
++	.sr_reh_addr = 0x00820004,
++	.sr_magic = PMCI_SR_PROG_MAGIC,
++	.pr_prog_addr = 0x00810000,
++	.pr_reh_addr = 0x00810004,
++	.pr_magic = PMCI_PR_PROG_MAGIC,
++	.rsu_update_counter = 0x00860000,
++};
++
+ static const struct m10bmc_csr m10bmc_spi_csr = {
+ 	.base = M10BMC_SYS_BASE,
+ 	.build_version = M10BMC_BUILD_VER,
+@@ -63,6 +83,11 @@ static struct mfd_cell m10bmc_n6000_bmc_subdevs[] = {
+ 
+ static const struct regmap_range null_fw_handshake_regs[0];
+ 
++static struct mfd_cell m10bmc_c6100_bmc_subdevs[] = {
++	{ .name = "c6100bmc-hwmon" },
++	{ .name = "n6000bmc-sec-update" },
++};
++
+ static struct mfd_cell m10bmc_d5005_subdevs[] = {
+ 	{ .name = "d5005bmc-hwmon" },
+ 	{ .name = "d5005bmc-sec-update" }
+@@ -229,7 +254,8 @@ int m10bmc_sys_read(struct intel_m10bmc *m10bmc, unsigned int offset,
+ 	 * to service handshake registers during a secure update and -EBUSY
+ 	 * is returned for these cases.
+ 	 */
+-	if (m10bmc->type == M10_N6000 || !is_handshake_sys_reg(m10bmc, offset))
++	if (m10bmc->type == M10_N6000 || m10bmc->type == M10_C6100 ||
++	    !is_handshake_sys_reg(m10bmc, offset))
+ 		return m10bmc_raw_read(m10bmc, m10bmc->csr->base + (offset), val);
+ 
+ 	down_read(&m10bmc->bmcfw_lock);
+@@ -255,7 +281,8 @@ int m10bmc_sys_update_bits(struct intel_m10bmc *m10bmc, unsigned int offset,
+ 	 * to service handshake registers during a secure update and -EBUSY
+ 	 * is returned for these cases.
+ 	 */
+-	if (m10bmc->type == M10_N6000 || !is_handshake_sys_reg(m10bmc, offset))
++	if (m10bmc->type == M10_N6000 || m10bmc->type == M10_C6100 ||
++	    !is_handshake_sys_reg(m10bmc, offset))
+ 		return regmap_update_bits(m10bmc->regmap,
+ 					  m10bmc->csr->base + (offset), msk, val);
+ 
+@@ -396,7 +423,7 @@ int m10bmc_dev_init(struct intel_m10bmc *m10bmc)
+ 	init_rwsem(&m10bmc->bmcfw_lock);
+ 	dev_set_drvdata(m10bmc->dev, m10bmc);
+ 
+-	if (m10bmc->type == M10_N6000) {
++	if ((m10bmc->type == M10_N6000) || (m10bmc->type == M10_C6100)) {
+ 		if (!m10bmc->flash_ops) {
+ 			dev_err(m10bmc->dev,
+ 				"No flash-ops provided\n");
+@@ -444,6 +471,13 @@ int m10bmc_dev_init(struct intel_m10bmc *m10bmc)
+ 		m10bmc->handshake_sys_reg_nranges = 0;
+ 		m10bmc->csr = &m10bmc_pmci_csr;
+ 		break;
++	case M10_C6100:
++		cells = m10bmc_c6100_bmc_subdevs;
++		n_cell = ARRAY_SIZE(m10bmc_c6100_bmc_subdevs);
++		m10bmc->handshake_sys_reg_ranges = null_fw_handshake_regs;
++		m10bmc->handshake_sys_reg_nranges = 0;
++		m10bmc->csr = &m10bmc_pmci2_csr;
++		break;
+ 	case M10_N5014:
+ 		cells = m10bmc_n5014_subdevs;
+ 		n_cell = ARRAY_SIZE(m10bmc_n5014_subdevs);
+diff --git a/drivers/mfd/intel-m10-bmc-pmci.c b/drivers/mfd/intel-m10-bmc-pmci.c
+index 2c553c546c18..391a0cd7879f 100644
+--- a/drivers/mfd/intel-m10-bmc-pmci.c
++++ b/drivers/mfd/intel-m10-bmc-pmci.c
+@@ -175,7 +175,10 @@ static int pmci_probe(struct dfl_device *ddev)
+ 
+ 	pmci->m10bmc.dev = dev;
+ 	pmci->dev = dev;
+-	pmci->m10bmc.type = M10_N6000;
++	if (ddev->revision == 2)
++		pmci->m10bmc.type = M10_C6100;
++	else
++		pmci->m10bmc.type = M10_N6000;
+ 	pmci->m10bmc.flash_ops = pmci_flash_ops;
+ 
+ 	pmci->base = devm_ioremap_resource(dev, &ddev->mmio_res);
+diff --git a/include/linux/mfd/intel-m10-bmc.h b/include/linux/mfd/intel-m10-bmc.h
+index c536addfa482..562337423ed7 100644
+--- a/include/linux/mfd/intel-m10-bmc.h
++++ b/include/linux/mfd/intel-m10-bmc.h
+@@ -19,6 +19,7 @@ enum m10bmc_type {
+ 	M10_D5005,
+ 	M10_N5010,
+ 	M10_N6000,
++	M10_C6100,
+ 	M10_N5014,
+ };
+ 
+@@ -202,6 +203,7 @@ enum m10bmc_type {
+ /* Telemetry registers */
+ #define M10BMC_PMCI_TELEM_START		0x400
+ #define M10BMC_PMCI_TELEM_END		0x78c
++#define M10BMC_PMCI2_TELEM_END		0x7d0
+ 
+ #define M10BMC_PMCI_BUILD_VER   0x0
+ #define NIOS2_PMCI_FW_VERSION   0x4
+-- 
+2.39.0
+

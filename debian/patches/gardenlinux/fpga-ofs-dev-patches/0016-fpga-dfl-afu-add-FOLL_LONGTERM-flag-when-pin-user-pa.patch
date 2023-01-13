@@ -1,0 +1,31 @@
+From 76fa200c181a231f7eeef466346b4ddd5d2c1b82 Mon Sep 17 00:00:00 2001
+From: Wu Hao <hao.wu@intel.com>
+Date: Thu, 7 May 2020 19:30:57 +0800
+Subject: [PATCH 16/93] fpga: dfl: afu: add FOLL_LONGTERM flag when pin user
+ pages
+
+This patch add FOLL_LONGTERM flag in case the buffers are
+used for DMA.
+
+Signed-off-by: Wu Hao <hao.wu@intel.com>
+Signed-off-by: Xu Yilun <yilun.xu@intel.com>
+---
+ drivers/fpga/dfl-afu-dma-region.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/fpga/dfl-afu-dma-region.c b/drivers/fpga/dfl-afu-dma-region.c
+index 238dc02cff33..6830b50861fe 100644
+--- a/drivers/fpga/dfl-afu-dma-region.c
++++ b/drivers/fpga/dfl-afu-dma-region.c
+@@ -36,7 +36,7 @@ static int afu_dma_pin_pages(struct dfl_feature_dev_data *fdata,
+ {
+ 	int npages = region->length >> PAGE_SHIFT;
+ 	struct device *dev = &fdata->dev->dev;
+-	unsigned int flags = 0;
++	unsigned int flags = FOLL_LONGTERM;
+ 	int ret, pinned;
+ 
+ 	ret = account_locked_vm(current->mm, npages, true);
+-- 
+2.39.0
+

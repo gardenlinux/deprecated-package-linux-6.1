@@ -1,0 +1,156 @@
+From 66c49570ffec779878846151b10a7273bfa430e0 Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Wed, 3 Aug 2022 11:35:51 -0700
+Subject: [PATCH 68/93] fpga: m10bmc-sec: Expose SDM PR provisioning status
+
+Provide a new read-only sysfs file, sdm_sr_provision_status, to report the
+N6000 SDM Partial Configuration key provisioning status. Also split the
+sdm keyword for the available_images sysfs node into sdm_sr and sdm_pr in
+order to support image loads for both SDM SR and SDM PR key hashes.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ .../sysfs-driver-intel-m10-bmc-sec-update     |  8 ++++
+ drivers/fpga/intel-m10-bmc-sec-update.c       | 48 +++++++++++++++----
+ include/linux/mfd/intel-m10-bmc.h             | 10 ++--
+ 3 files changed, 55 insertions(+), 11 deletions(-)
+
+diff --git a/Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-sec-update b/Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-sec-update
+index e043ea4a6b79..a35440276639 100644
+--- a/Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-sec-update
++++ b/Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-sec-update
+@@ -68,6 +68,14 @@ Description:	Read-only. Read this file to determine the status of SDM
+ 		static region key provisioning.
+ 		Format: "0x%x".
+ 
++What:		/sys/bus/platform/drivers/intel-m10bmc-sec-update/.../security/sdm_pr_provision_status
++Date:		Dec 2022
++KernelVersion:  6.1
++Contact:	Russ Weight <russell.h.weight@intel.com>
++Description:	Read-only. Read this file to determine the status of SDM
++		partial reconfiguration key provisioning.
++		Format: "0x%x".
++
+ What:		/sys/bus/platform/drivers/intel-m10bmc-sec-update/.../control/available_images
+ Date:		Nov 2021
+ KernelVersion:  5.16
+diff --git a/drivers/fpga/intel-m10-bmc-sec-update.c b/drivers/fpga/intel-m10-bmc-sec-update.c
+index 0ed8e69a38ff..a1acb9927f52 100644
+--- a/drivers/fpga/intel-m10-bmc-sec-update.c
++++ b/drivers/fpga/intel-m10-bmc-sec-update.c
+@@ -176,12 +176,20 @@ static int pmci_sec_fpga_image_load(struct m10bmc_sec *sec,
+ 				  PMCI_FPGA_RP_LOAD);
+ }
+ 
+-static int pmci_sec_sdm_image_load(struct m10bmc_sec *sec)
++static int pmci_sec_sdm_sr_image_load(struct m10bmc_sec *sec)
+ {
+ 	return regmap_update_bits(sec->m10bmc->regmap,
+ 				  m10bmc_base(sec->m10bmc) +
+-				  M10BMC_PMCI_SDM_CTRL_STS,
+-				  PMCI_SDM_IMG_REQ, PMCI_SDM_IMG_REQ);
++				  M10BMC_PMCI_SDM_SR_CTRL_STS,
++				  PMCI_SDM_SR_IMG_REQ, PMCI_SDM_SR_IMG_REQ);
++}
++
++static int pmci_sec_sdm_pr_image_load(struct m10bmc_sec *sec)
++{
++	return regmap_update_bits(sec->m10bmc->regmap,
++				  m10bmc_base(sec->m10bmc) +
++				  M10BMC_PMCI_SDM_PR_CTRL_STS,
++				  PMCI_SDM_PR_IMG_REQ, PMCI_SDM_PR_IMG_REQ);
+ }
+ 
+ static int m10bmc_sec_bmc_image_load_0(struct m10bmc_sec *sec)
+@@ -423,8 +431,12 @@ static struct image_load pmci_image_load_hndlrs[] = {
+ 		.load_image = pmci_sec_fpga_image_load_2,
+ 	},
+ 	{
+-		.name = "sdm",
+-		.load_image = pmci_sec_sdm_image_load,
++		.name = "sdm_sr",
++		.load_image = pmci_sec_sdm_sr_image_load,
++	},
++	{
++		.name = "sdm_pr",
++		.load_image = pmci_sec_sdm_pr_image_load,
+ 	},
+ 	{}
+ };
+@@ -582,22 +594,41 @@ sdm_sr_provision_status_show(struct device *dev,
+ 	int ret;
+ 
+ 	ret = m10bmc_sys_read(sec->m10bmc, m10bmc_base(sec->m10bmc) +
+-			      M10BMC_PMCI_SDM_CTRL_STS, &status);
++			      M10BMC_PMCI_SDM_SR_CTRL_STS, &status);
+ 	if (ret)
+ 		return ret;
+ 
+ 	return sysfs_emit(buf, "0x%x\n",
+-			  (unsigned int)FIELD_GET(PMCI_SDM_PGM_ERROR, status));
++			  (unsigned int)FIELD_GET(PMCI_SDM_SR_PGM_ERROR, status));
+ }
+ static DEVICE_ATTR_RO(sdm_sr_provision_status);
+ 
++static ssize_t
++sdm_pr_provision_status_show(struct device *dev,
++			     struct device_attribute *attr, char *buf)
++{
++	struct m10bmc_sec *sec = dev_get_drvdata(dev);
++	u32 status;
++	int ret;
++
++	ret = m10bmc_sys_read(sec->m10bmc, m10bmc_base(sec->m10bmc) +
++			      M10BMC_PMCI_SDM_PR_CTRL_STS, &status);
++	if (ret)
++		return ret;
++
++	return sysfs_emit(buf, "0x%x\n",
++			  (unsigned int)FIELD_GET(PMCI_SDM_PR_PGM_ERROR, status));
++}
++static DEVICE_ATTR_RO(sdm_pr_provision_status);
++
+ static umode_t
+ m10bmc_security_is_visible(struct kobject *kobj, struct attribute *attr, int n)
+ {
+ 	struct m10bmc_sec *sec = dev_get_drvdata(kobj_to_dev(kobj));
+ 
+ 	if (sec->type != N6000BMC_SEC &&
+-	    attr == &dev_attr_sdm_sr_provision_status.attr)
++	    (attr == &dev_attr_sdm_sr_provision_status.attr ||
++	     attr == &dev_attr_sdm_pr_provision_status.attr))
+ 		return 0;
+ 
+ 	return attr->mode;
+@@ -612,6 +643,7 @@ static struct attribute *m10bmc_security_attrs[] = {
+ 	&dev_attr_pr_canceled_csks.attr,
+ 	&dev_attr_bmc_canceled_csks.attr,
+ 	&dev_attr_sdm_sr_provision_status.attr,
++	&dev_attr_sdm_pr_provision_status.attr,
+ 	NULL,
+ };
+ 
+diff --git a/include/linux/mfd/intel-m10-bmc.h b/include/linux/mfd/intel-m10-bmc.h
+index 94138aace931..b570ac3890c6 100644
+--- a/include/linux/mfd/intel-m10-bmc.h
++++ b/include/linux/mfd/intel-m10-bmc.h
+@@ -256,9 +256,13 @@ enum m10bmc_type {
+ #define PMCI_FPGA_RECONF_PAGE  GENMASK(22, 20)
+ #define PMCI_FPGA_RP_LOAD      BIT(23)
+ 
+-#define M10BMC_PMCI_SDM_CTRL_STS 0x230
+-#define PMCI_SDM_IMG_REQ	BIT(0)
+-#define PMCI_SDM_PGM_ERROR	GENMASK(23, 16)
++#define M10BMC_PMCI_SDM_SR_CTRL_STS 0x230
++#define PMCI_SDM_SR_IMG_REQ	BIT(0)
++#define PMCI_SDM_SR_PGM_ERROR	GENMASK(23, 16)
++
++#define M10BMC_PMCI_SDM_PR_CTRL_STS 0x238
++#define PMCI_SDM_PR_IMG_REQ	BIT(0)
++#define PMCI_SDM_PR_PGM_ERROR	GENMASK(23, 16)
+ 
+ #define M10BMC_PMCI_SDM_PR_STS		0x820
+ #define M10BMC_PMCI_CERT_PROG_STS	0x824
+-- 
+2.39.0
+

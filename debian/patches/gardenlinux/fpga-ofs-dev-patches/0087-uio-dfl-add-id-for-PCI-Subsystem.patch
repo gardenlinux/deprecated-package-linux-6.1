@@ -1,0 +1,35 @@
+From 2a77504753a555157e07072f6f467184a3f7197b Mon Sep 17 00:00:00 2001
+From: Matthew Gerlach <matthew.gerlach@intel.com>
+Date: Thu, 29 Sep 2022 08:49:30 -0700
+Subject: [PATCH 87/93] uio: dfl: add id for PCI Subsystem
+
+Add id for device feature list (dfl) PCI subsystem feature
+to table of ids supported by the uio_dfl driver.
+
+Signed-off-by: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+---
+ drivers/uio/uio_dfl.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/uio/uio_dfl.c b/drivers/uio/uio_dfl.c
+index b9c4d4cb31d9..ba619348b107 100644
+--- a/drivers/uio/uio_dfl.c
++++ b/drivers/uio/uio_dfl.c
+@@ -133,12 +133,14 @@ static int uio_dfl_probe(struct dfl_device *ddev)
+ 
+ #define FME_FEATURE_ID_ETH_GROUP	0x10
+ #define FME_FEATURE_ID_HSSI_SUBSYS	0x15
++#define FME_FEATURE_ID_PCI_SUBSYS	0x20
+ #define FME_FEATURE_ID_OFS_GUID		0x23
+ #define PORT_FEATURE_ID_IOPLL_USRCLK	0x14
+ 
+ static const struct dfl_device_id uio_dfl_ids[] = {
+ 	{ FME_ID, FME_FEATURE_ID_ETH_GROUP },
+ 	{ FME_ID, FME_FEATURE_ID_HSSI_SUBSYS },
++	{ FME_ID, FME_FEATURE_ID_PCI_SUBSYS },
+ 	{ FME_ID, FME_FEATURE_ID_OFS_GUID },
+ 	{ PORT_ID, PORT_FEATURE_ID_IOPLL_USRCLK },
+ 	{ }
+-- 
+2.39.0
+

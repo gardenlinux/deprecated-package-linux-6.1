@@ -1,0 +1,182 @@
+From 826afe196d681f3521f42a486c65d89d7d8b3759 Mon Sep 17 00:00:00 2001
+From: Tianfei zhang <tianfei.zhang@intel.com>
+Date: Mon, 8 Mar 2021 07:05:18 -0500
+Subject: [PATCH 55/93] fpga: m10bmc-sec: add image loader for PMCI
+
+Adding image loader functions like bmc image and fpga image
+for PMCI-based FPGA Card.
+
+Signed-off-by: Tianfei zhang <tianfei.zhang@intel.com>
+---
+ drivers/fpga/intel-m10-bmc-sec-update.c | 106 ++++++++++++++++++++++--
+ include/linux/mfd/intel-m10-bmc.h       |  10 +++
+ 2 files changed, 110 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/fpga/intel-m10-bmc-sec-update.c b/drivers/fpga/intel-m10-bmc-sec-update.c
+index 686984000b64..19d26d9b3739 100644
+--- a/drivers/fpga/intel-m10-bmc-sec-update.c
++++ b/drivers/fpga/intel-m10-bmc-sec-update.c
+@@ -66,13 +66,56 @@ static int m10bmc_sec_bmc_image_load(struct m10bmc_sec *sec,
+ 	if (ret)
+ 		return ret;
+ 
+-	if (doorbell & DRBL_REBOOT_DISABLED)
+-		return -EBUSY;
++	switch (sec->type) {
++	case N3000BMC_SEC:
++	case D5005BMC_SEC:
++	case N5010BMC_SEC:
++		if (doorbell & DRBL_REBOOT_DISABLED)
++			return -EBUSY;
++
++		return m10bmc_sys_update_bits(sec->m10bmc, doorbell_reg(sec->m10bmc),
++					      DRBL_CONFIG_SEL | DRBL_REBOOT_REQ,
++					      FIELD_PREP(DRBL_CONFIG_SEL, val) |
++					      DRBL_REBOOT_REQ);
++	case N6000BMC_SEC:
++		if (doorbell & PMCI_DRBL_REBOOT_DISABLED)
++			return -EBUSY;
++
++		return regmap_update_bits(sec->m10bmc->regmap,
++					  m10bmc_base(sec->m10bmc) +
++					  M10BMC_PMCI_MAX10_RECONF,
++					  PMCI_MAX10_REBOOT_REQ | PMCI_MAX10_REBOOT_PAGE,
++					  FIELD_PREP(PMCI_MAX10_REBOOT_PAGE, val) |
++					  PMCI_MAX10_REBOOT_REQ);
++
++	default:
++		return -EINVAL;
++	}
++}
++
++static int pmci_sec_fpga_image_load(struct m10bmc_sec *sec,
++				    unsigned int val)
++{
++	int ret;
++
++	if (val > 2) {
++		dev_err(sec->dev, "%s invalid reload val = %d\n",
++			__func__, val);
++		return -EINVAL;
++	}
+ 
+-	return m10bmc_sys_update_bits(sec->m10bmc, doorbell_reg(sec->m10bmc),
+-				     DRBL_CONFIG_SEL | DRBL_REBOOT_REQ,
+-				     FIELD_PREP(DRBL_CONFIG_SEL, val) |
+-				     DRBL_REBOOT_REQ);
++	ret = regmap_update_bits(sec->m10bmc->regmap,
++				 m10bmc_base(sec->m10bmc) + M10BMC_PMCI_FPGA_RECONF,
++				 PMCI_FPGA_RP_LOAD, 0);
++	if (ret)
++		return ret;
++
++	return regmap_update_bits(sec->m10bmc->regmap,
++				  m10bmc_base(sec->m10bmc) +
++				  M10BMC_PMCI_FPGA_RECONF,
++				  PMCI_FPGA_RECONF_PAGE | PMCI_FPGA_RP_LOAD,
++				  FIELD_PREP(PMCI_FPGA_RECONF_PAGE, val) |
++				  PMCI_FPGA_RP_LOAD);
+ }
+ 
+ static int m10bmc_sec_bmc_image_load_0(struct m10bmc_sec *sec)
+@@ -85,6 +128,31 @@ static int m10bmc_sec_bmc_image_load_1(struct m10bmc_sec *sec)
+ 	return m10bmc_sec_bmc_image_load(sec, 1);
+ }
+ 
++static int pmci_sec_bmc_image_load_0(struct m10bmc_sec *sec)
++{
++	return m10bmc_sec_bmc_image_load(sec, 0);
++}
++
++static int pmci_sec_bmc_image_load_1(struct m10bmc_sec *sec)
++{
++	return m10bmc_sec_bmc_image_load(sec, 1);
++}
++
++static int pmci_sec_fpga_image_load_0(struct m10bmc_sec *sec)
++{
++	return pmci_sec_fpga_image_load(sec, 0);
++}
++
++static int pmci_sec_fpga_image_load_1(struct m10bmc_sec *sec)
++{
++	return pmci_sec_fpga_image_load(sec, 1);
++}
++
++static int pmci_sec_fpga_image_load_2(struct m10bmc_sec *sec)
++{
++	return pmci_sec_fpga_image_load(sec, 2);
++}
++
+ static int retimer_check_idle(struct m10bmc_sec *sec)
+ {
+ 	u32 doorbell;
+@@ -267,6 +335,30 @@ static struct image_load d5005_image_load_hndlrs[] = {
+ 	{}
+ };
+ 
++static struct image_load pmci_image_load_hndlrs[] = {
++	{
++		.name = "bmc_factory",
++		.load_image = pmci_sec_bmc_image_load_0,
++	},
++	{
++		.name = "bmc_user",
++		.load_image = pmci_sec_bmc_image_load_1,
++	},
++	{
++		.name = "fpga_factory",
++		.load_image = pmci_sec_fpga_image_load_0,
++	},
++	{
++		.name = "fpga_user1",
++		.load_image = pmci_sec_fpga_image_load_1,
++	},
++	{
++		.name = "fpga_user2",
++		.load_image = pmci_sec_fpga_image_load_2,
++	},
++	{}
++};
++
+ static DEFINE_XARRAY_ALLOC(fw_upload_xa);
+ 
+ /* Root Entry Hash (REH) support */
+@@ -973,6 +1065,8 @@ static int m10bmc_sec_probe(struct platform_device *pdev)
+ 		sec->image_load = n3000_image_load_hndlrs;
+ 	else if (type == D5005BMC_SEC || type == N5010BMC_SEC)
+ 		sec->image_load = d5005_image_load_hndlrs;
++	else if (type == N6000BMC_SEC)
++		sec->image_load = pmci_image_load_hndlrs;
+ 
+ 	if (type == N6000BMC_SEC && !sec->m10bmc->flash_ops) {
+ 		dev_err(sec->dev, "No flash-ops provided for security manager\n");
+diff --git a/include/linux/mfd/intel-m10-bmc.h b/include/linux/mfd/intel-m10-bmc.h
+index c895bdde6f4c..13256e5c4c2b 100644
+--- a/include/linux/mfd/intel-m10-bmc.h
++++ b/include/linux/mfd/intel-m10-bmc.h
+@@ -194,11 +194,21 @@ enum m10bmc_type {
+ #define FLASH_HOST_REQUEST BIT(5)
+ 
+ #define M10BMC_PMCI_DOORBELL 0x1c0
++#define PMCI_DRBL_REBOOT_DISABLED BIT(1)
++
+ #define M10BMC_PMCI_AUTH_RESULT 0x1c4
+ 
+ #define M10_FLASH_INT_US       1
+ #define M10_FLASH_TIMEOUT_US   10000
+ 
++#define M10BMC_PMCI_MAX10_RECONF 0xfc
++#define PMCI_MAX10_REBOOT_REQ BIT(0)
++#define PMCI_MAX10_REBOOT_PAGE BIT(1)
++
++#define M10BMC_PMCI_FPGA_RECONF 0xb8
++#define PMCI_FPGA_RECONF_PAGE  GENMASK(22, 20)
++#define PMCI_FPGA_RP_LOAD      BIT(23)
++
+ /* Addresses for security related data in FLASH */
+ #define PMCI_BMC_REH_ADDR 0x7ffc004
+ #define PMCI_BMC_PROG_ADDR 0x7ffc000
+-- 
+2.39.0
+

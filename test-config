@@ -1,0 +1,83 @@
+#!/bin/bash
+
+
+source version.sh
+LINUX_FLAVOUR=${1:?Please specify linux flavor}
+TARGET_ARCH=${2:?Please specify linux arch}
+
+thisDir="$(dirname "$(readlink -f "$BASH_SOURCE")")"
+TEST_DIR=$(mktemp -d -p $(pwd) _orig_${UPSTREAM_VERSION}_XXXXXXXXXX)
+trap 'rm -rf -- "$TEST_DIR"' EXIT
+
+
+VERSION_LATEST=$(upstream_version)
+
+PKG_LINUX_IMAGE_NAME_PREFIX="linux-image-${VERSION_LATEST}-gardenlinux-${LINUX_FLAVOUR}_${VERSION_LATEST}"
+
+function check_config {
+  TARGET_CONFIG=${1}
+  ARTIFACT_CONFIG=${2}
+
+  TARGET_CONFIG_FILTERED="${TARGET_CONFIG}.filtered"
+  TARGET_CONFIG_DISABLED="${TARGET_CONFIG}.disabled"
+  
+  # Check that disabled flags are not present
+  grep "=n$" "${TARGET_CONFIG}" | sed 's/\=n//g' > "${TARGET_CONFIG_DISABLED}" 
+
+  # For each target config disabled, check if either `y` or `m` is enabled.
+  while IFS= read -r line
+  do
+    grep -P "^${line}=[y|m]" "${ARTIFACT_CONFIG}"
+    if grep -qP "^${line}=[y|m]" "${ARTIFACT_CONFIG}"; then
+      WRONGLY_ENABLED_CONFIGS="${WRONGLS_ENABLED_CONFIGS}\n$line"
+    fi
+  done < "$TARGET_CONFIG_DISABLED"
+
+  rm ${TARGET_CONFIG_DISABLED}
+  if [ -n "${WRONGLY_ENABLED_CONFIGS}" ]; then
+    echo "--- Following Configs were enabled but garden linux config explicitly disabled them ---"
+    echo -e "${WRONGLY_ENABLED_CONFIGS}"
+    echo "-----------------------"
+    exit 257
+  fi
+
+  sed -e "/#.*skip.*[all|$TARGET_ARCH].*/,+1d" "${TARGET_CONFIG}" | sed  '/=n$/d' | tee "${TARGET_CONFIG_FILTERED}" > /dev/null
+  MISSING_CONFIGS=$(comm -23 <(grep -v '^#' "${TARGET_CONFIG_FILTERED}" | sort) <(sort "${ARTIFACT_CONFIG}"))
+  rm ${TARGET_CONFIG_FILTERED}
+  if [ -n "${MISSING_CONFIGS}" ]; then
+    echo "--- Missing Configs ---"
+    echo "${MISSING_CONFIGS}"
+    echo "-----------------------"
+    exit 257
+  fi
+}
+
+pushd _input
+TARGET_LINUX_IMAGE_PKG=$(find . -maxdepth 1 -name "*${PKG_LINUX_IMAGE_NAME_PREFIX}*.deb")
+if [[ 1 != $(find . -maxdepth 1 -name "*${PKG_LINUX_IMAGE_NAME_PREFIX}*.deb" | grep -z . | wc -l) ]]; then
+  echo "### Abort. Do not know which package to test"
+  echo "### Packages found: ${TARGET_LINUX_IMAGE_PKG}"
+  exit 1
+fi
+echo "### Copy build artifact '${TARGET_LINUX_IMAGE_PKG}' and extract kernel config"
+cp "${TARGET_LINUX_IMAGE_PKG}" "${TEST_DIR}"
+popd # _input
+pushd ${TEST_DIR}
+echo "### Unpack Artifact Config"
+ar x "${TARGET_LINUX_IMAGE_PKG}" && tar xf data.tar.xz
+ARTIFACT_CONFIG_FILE="$(pwd)/$(find boot/ -maxdepth 1 -type f -name "config*")"
+if [[ 1 != $(find boot/ -maxdepth 1 -type f -name "config*" | grep -z . | wc -l) ]]; then
+  echo "### Abort. Do not know which package to test"
+  echo "### Packages found: ${TARGET_LINUX_IMAGE_PKG}"
+  exit 1
+fi
+popd # TEST_DIR
+
+echo "### Check config.gardenlinux"
+check_config "${thisDir}/debian/config/config.gardenlinux" ${ARTIFACT_CONFIG_FILE}
+
+#echo "### Check config.dfl"
+#check_config "${thisDir}/debian/config/config.dfl" ${ARTIFACT_CONFIG_FILE}
+
+echo "### Check config.ima"
+check_config "${thisDir}/debian/config/config.ima" ${ARTIFACT_CONFIG_FILE}

@@ -1,0 +1,564 @@
+From 8e80ee7ddf50f26ab3de131e3a60649ca237eac7 Mon Sep 17 00:00:00 2001
+From: KrishnaSimmadhari <91877513+KrishnaSimmadhari@users.noreply.github.com>
+Date: Fri, 9 Dec 2022 09:21:33 +0530
+Subject: [PATCH 63/93] net: phy: QSFP controller subsystem driver for Intel
+ FPGAs
+
+Qsfp controller driver to include platform and DFL interface driver. DFL driver is used
+for the host which accesses the QSFP controller subsystem using the PCIe bus and
+the platform driver is used where the subsystem is accessed through the AXI/AXI-Lite bus.
+
+Signed-off-by: Krishna Kumar S R <simmadhari.ramadass.krishna.kumar@intel.com>
+---
+ .../bindings/phy/intel,qsfp-mem.txt           |  16 +++
+ drivers/net/phy/Kconfig                       |  24 +++-
+ drivers/net/phy/Makefile                      |   4 +-
+ .../net/phy/{qsfp-mem.c => qsfp-mem-core.c}   | 128 +++++-------------
+ drivers/net/phy/qsfp-mem-dfl.c                |  83 ++++++++++++
+ drivers/net/phy/qsfp-mem-platform.c           |  95 +++++++++++++
+ include/linux/phy/qsfp-mem.h                  |  50 +++++++
+ 7 files changed, 298 insertions(+), 102 deletions(-)
+ create mode 100644 Documentation/devicetree/bindings/phy/intel,qsfp-mem.txt
+ rename drivers/net/phy/{qsfp-mem.c => qsfp-mem-core.c} (61%)
+ create mode 100644 drivers/net/phy/qsfp-mem-dfl.c
+ create mode 100644 drivers/net/phy/qsfp-mem-platform.c
+ create mode 100644 include/linux/phy/qsfp-mem.h
+
+diff --git a/Documentation/devicetree/bindings/phy/intel,qsfp-mem.txt b/Documentation/devicetree/bindings/phy/intel,qsfp-mem.txt
+new file mode 100644
+index 000000000000..4a5161dc5cff
+--- /dev/null
++++ b/Documentation/devicetree/bindings/phy/intel,qsfp-mem.txt
+@@ -0,0 +1,16 @@
++* Intel QSFP Memory controller subsystem
++
++Required properties:
++- compatible: Should be "intel,qsfp-mem"
++- reg: Address and length of the register set for the device. It contains
++  the information of registers in the same order as described by reg-names
++- reg-names: Should contain the reg names
++
++Example:
++
++		qsfp_eth0: qsfp-eth0 {
++			   compatible = "intel,qsfp-mem";
++			   reg-names = "qsfp-mem-controller";
++			   reg = <0x00000001 0x80112000 0x00001000>,
++			   status = "okay";
++		};
+diff --git a/drivers/net/phy/Kconfig b/drivers/net/phy/Kconfig
+index effe84c91c75..b5eaf0d9e3fe 100644
+--- a/drivers/net/phy/Kconfig
++++ b/drivers/net/phy/Kconfig
+@@ -61,12 +61,28 @@ config SFP
+ 	depends on HWMON || HWMON=n
+ 	select MDIO_I2C
+ 
+-config QSFP_MEM
+-	tristate "Memory based QSFP support"
++config QSFP_MEM_CORE
++	tristate "QSFP Controller subsystem core code" if COMPILE_TEST
+ 	depends on HWMON || HWMON=n
+ 	help
+-	  Adds support for a QSFP controller that shadows the QSFP module's
+-	  memory pages in memory.
++	  The core code for the QSFP Controller subsystem for Intel FPGAs used
++	  by other interafce module drivers for access to the QSFP controller
++	  subsystem registers
++
++config QSFP_MEM
++	tristate "Memory based platform driver for QSFP Controller subsystem in Intel FPGAs"
++	select QSFP_MEM_CORE
++	help
++	  Adds support for a QSFP controller subsystem that shadows the QSFP module's
++	  memory pages in memory
++
++config QSFP_MEM_DFL
++	tristate "DFL bus driver for QSFP Controller subsystem in Intel FPGAs"
++	depends on FPGA_DFL
++	select QSFP_MEM_CORE
++	help
++	  This is a Device Feature List (DFL) bus driver for the
++	  QSFP Controller subsystem in Intel FPGAs.
+ 
+ comment "MII PHY device drivers"
+ 
+diff --git a/drivers/net/phy/Makefile b/drivers/net/phy/Makefile
+index 89f1430211e6..90eb24517b41 100644
+--- a/drivers/net/phy/Makefile
++++ b/drivers/net/phy/Makefile
+@@ -30,7 +30,9 @@ obj-$(CONFIG_SFP)		+= sfp.o
+ sfp-obj-$(CONFIG_SFP)		+= sfp-bus.o
+ obj-y				+= $(sfp-obj-y) $(sfp-obj-m)
+ 
+-obj-$(CONFIG_QSFP_MEM)		+= qsfp-mem.o
++obj-$(CONFIG_QSFP_MEM_CORE)	+= qsfp-mem-core.o
++obj-$(CONFIG_QSFP_MEM_DFL)	+= qsfp-mem-dfl.o
++obj-$(CONFIG_QSFP_MEM)		+= qsfp-mem-platform.o
+ 
+ obj-$(CONFIG_ADIN_PHY)		+= adin.o
+ obj-$(CONFIG_ADIN1100_PHY)	+= adin1100.o
+diff --git a/drivers/net/phy/qsfp-mem.c b/drivers/net/phy/qsfp-mem-core.c
+similarity index 61%
+rename from drivers/net/phy/qsfp-mem.c
+rename to drivers/net/phy/qsfp-mem-core.c
+index d1f8cde19204..3f56dec5cd23 100644
+--- a/drivers/net/phy/qsfp-mem.c
++++ b/drivers/net/phy/qsfp-mem-core.c
+@@ -2,11 +2,10 @@
+ 
+ /* Intel(R) Memory based QSFP driver.
+  *
+- * Copyright (C) 2020 Intel Corporation. All rights reserved.
++ * Copyright (C) 2020,2022 Intel Corporation. All rights reserved.
+  */
+ 
+ #include <linux/bitfield.h>
+-#include <linux/dfl.h>
+ #include <linux/etherdevice.h>
+ #include <linux/ethtool.h>
+ #include <linux/i2c.h>
+@@ -15,6 +14,7 @@
+ #include <linux/netdevice.h>
+ #include <linux/regmap.h>
+ #include <linux/uaccess.h>
++#include <linux/phy/qsfp-mem.h>
+ 
+ #define CONF_OFF	0x20
+ #define CONF_RST_MOD	BIT(0)
+@@ -51,29 +51,6 @@
+ 
+ #define QSFP_CHECK_TIME 500
+ 
+-enum qsfp_init_status {
+-	QSFP_INIT_RESET = 0,
+-	QSFP_INIT_DONE,
+-};
+-
+-/**
+- * struct qsfp - device private data structure
+- * @base: base address of the device.
+- * @regmap: regmap for device.
+- * @dwork: work struct for checking qsfp plugin status.
+- * @dev: point to dfl device.
+- * @init: qsfp init status.
+- * @lock: lock for qsfp initial function and status.
+- */
+-struct qsfp {
+-	void __iomem *base;
+-	struct regmap *regmap;
+-	struct delayed_work dwork;
+-	struct device *dev;
+-	enum qsfp_init_status init;
+-	struct mutex lock;
+-};
+-
+ static const struct regmap_range qsfp_mem_regmap_range[] = {
+ 	regmap_reg_range(CONF_OFF, STAT_OFF),
+ 	regmap_reg_range(QSFP_SHADOW_CSRS_BASE_OFF, QSFP_SHADOW_CSRS_BASE_END),
+@@ -92,7 +69,7 @@ static void qsfp_init_i2c(struct qsfp *qsfp)
+ 	writel(COUNT_PERIOD_HOLD, qsfp->base + I2C_SDA_HOLD);
+ 
+ 	writel(FIELD_PREP(I2C_CTRL_FIFO, I2C_CTRL_FIFO_NOT_FULL) |
+-	       I2C_CTRL_EN | I2C_CTRL_BSP, qsfp->base + I2C_CTRL);
++			I2C_CTRL_EN | I2C_CTRL_BSP, qsfp->base + I2C_CTRL);
+ }
+ 
+ static const struct regmap_config mmio_cfg = {
+@@ -106,8 +83,7 @@ static const struct regmap_config mmio_cfg = {
+ 
+ static void qsfp_init(struct qsfp *qsfp)
+ {
+-	writeq(CONF_RST_MOD | CONF_RST_CON | CONF_MOD_SEL,
+-	       qsfp->base + CONF_OFF);
++	writeq(CONF_RST_MOD | CONF_RST_CON | CONF_MOD_SEL, qsfp->base + CONF_OFF);
+ 	udelay(DELAY_US);
+ 	writeq(CONF_MOD_SEL, qsfp->base + CONF_OFF);
+ 	udelay(DELAY_US);
+@@ -121,7 +97,7 @@ static void qsfp_init(struct qsfp *qsfp)
+ 	udelay(DELAY_US);
+ }
+ 
+-static int check_qsfp_plugin(struct qsfp *qsfp)
++int check_qsfp_plugin(struct qsfp *qsfp)
+ {
+ 	u64 status;
+ 
+@@ -129,8 +105,21 @@ static int check_qsfp_plugin(struct qsfp *qsfp)
+ 
+ 	return (!(status & MODPRSL));
+ }
++EXPORT_SYMBOL_GPL(check_qsfp_plugin);
+ 
+-static void qsfp_check_hotplug(struct work_struct *work)
++u32 qsfp_connected_show(struct qsfp *qsfp)
++{
++	u32 plugin;
++
++	mutex_lock(&qsfp->lock);
++	plugin = check_qsfp_plugin(qsfp) && (qsfp->init == QSFP_INIT_DONE);
++	mutex_unlock(&qsfp->lock);
++
++	return plugin;
++}
++EXPORT_SYMBOL_GPL(qsfp_connected_show);
++
++void qsfp_check_hotplug(struct work_struct *work)
+ {
+ 	struct delayed_work *dwork;
+ 	struct qsfp *qsfp;
+@@ -144,8 +133,7 @@ static void qsfp_check_hotplug(struct work_struct *work)
+ 	status = readq(qsfp->base + STAT_OFF);
+ 	dev_dbg(qsfp->dev, "qsfp status 0x%llx\n", status);
+ 
+-	if (check_qsfp_plugin(qsfp) &&
+-	    qsfp->init == QSFP_INIT_RESET) {
++	if (check_qsfp_plugin(qsfp) && qsfp->init == QSFP_INIT_RESET) {
+ 		dev_info(qsfp->dev, "detected QSFP plugin\n");
+ 		qsfp_init(qsfp);
+ 		WRITE_ONCE(qsfp->init, QSFP_INIT_DONE);
+@@ -159,47 +147,17 @@ static void qsfp_check_hotplug(struct work_struct *work)
+ 	schedule_delayed_work(&qsfp->dwork, msecs_to_jiffies(QSFP_CHECK_TIME));
+ }
+ 
+-static ssize_t qsfp_connected_show(struct device *dev,
+-				   struct device_attribute *attr, char *buf)
++int qsfp_init_work(struct qsfp *qsfp)
+ {
+-	struct qsfp *qsfp = dev_get_drvdata(dev);
+-	u32 plugin;
+-
+-	mutex_lock(&qsfp->lock);
+-	plugin = check_qsfp_plugin(qsfp) && (qsfp->init == QSFP_INIT_DONE);
+-	mutex_unlock(&qsfp->lock);
+-
+-	return sysfs_emit(buf, "%u\n", plugin);
++	INIT_DELAYED_WORK(&qsfp->dwork, qsfp_check_hotplug);
++	qsfp_check_hotplug(&qsfp->dwork.work);
++	return 0;
+ }
++EXPORT_SYMBOL_GPL(qsfp_init_work);
+ 
+-static DEVICE_ATTR_RO(qsfp_connected);
+-
+-static struct attribute *qsfp_mem_attrs[] = {
+-	&dev_attr_qsfp_connected.attr,
+-	NULL,
+-};
+-ATTRIBUTE_GROUPS(qsfp_mem);
+-
+-static int qsfp_probe(struct dfl_device *dfl_dev)
++int qsfp_register_regmap(struct qsfp *qsfp)
+ {
+-	struct device *dev = &dfl_dev->dev;
+-	struct qsfp *qsfp;
+-
+-	qsfp = devm_kzalloc(dev, sizeof(*qsfp), GFP_KERNEL);
+-	if (!qsfp)
+-		return -ENOMEM;
+-
+-	qsfp->base = devm_ioremap_resource(dev, &dfl_dev->mmio_res);
+-	if (!qsfp->base)
+-		return -ENOMEM;
+-
+-	qsfp->dev = dev;
+-	mutex_init(&qsfp->lock);
+-
+-	dev_set_drvdata(dev, qsfp);
+-
+-	INIT_DELAYED_WORK(&qsfp->dwork, qsfp_check_hotplug);
+-	qsfp_check_hotplug(&qsfp->dwork.work);
++	struct device *dev = qsfp->dev;
+ 
+ 	qsfp->regmap = devm_regmap_init_mmio(dev, qsfp->base, &mmio_cfg);
+ 	if (IS_ERR(qsfp->regmap))
+@@ -207,36 +165,12 @@ static int qsfp_probe(struct dfl_device *dfl_dev)
+ 
+ 	return PTR_ERR_OR_ZERO(qsfp->regmap);
+ }
++EXPORT_SYMBOL_GPL(qsfp_register_regmap);
+ 
+-static void qsfp_remove(struct dfl_device *dfl_dev)
++void qsfp_remove_device(struct qsfp *qsfp)
+ {
+-	struct device *dev = &dfl_dev->dev;
+-	struct qsfp *qsfp = dev_get_drvdata(dev);
+-
+ 	writeq(CONF_MOD_SEL, qsfp->base + CONF_OFF);
+-
+ 	cancel_delayed_work_sync(&qsfp->dwork);
+ }
+-
+-#define FME_FEATURE_ID_QSFP 0x13
+-
+-static const struct dfl_device_id qsfp_ids[] = {
+-	{ FME_ID, FME_FEATURE_ID_QSFP },
+-	{ }
+-};
+-
+-static struct dfl_driver qsfp_driver = {
+-	.drv = {
+-		.name = "qsfp-mem",
+-		.dev_groups = qsfp_mem_groups,
+-	},
+-	.id_table = qsfp_ids,
+-	.probe = qsfp_probe,
+-	.remove = qsfp_remove,
+-};
+-
+-module_dfl_driver(qsfp_driver);
+-MODULE_DEVICE_TABLE(dfl, qsfp_ids);
+-MODULE_DESCRIPTION("Intel(R) Memory based QSFP driver");
+-MODULE_AUTHOR("Intel Corporation");
+-MODULE_LICENSE("GPL v2");
++EXPORT_SYMBOL_GPL(qsfp_remove_device);
++MODULE_LICENSE("GPL");
+diff --git a/drivers/net/phy/qsfp-mem-dfl.c b/drivers/net/phy/qsfp-mem-dfl.c
+new file mode 100644
+index 000000000000..51cbb8a97b4d
+--- /dev/null
++++ b/drivers/net/phy/qsfp-mem-dfl.c
+@@ -0,0 +1,83 @@
++// SPDX-License-Identifier: GPL-2.0
++
++/* Intel(R) Memory based QSFP driver For DFL based devices.
++ *
++ * Copyright (C) 2022 Intel Corporation. All rights reserved.
++ */
++#include <linux/dfl.h>
++#include <linux/phy/qsfp-mem.h>
++#include <linux/module.h>
++
++ssize_t dfl_qsfp_connected_show(struct device *dev, struct device_attribute *attr, char *buf)
++{
++	struct qsfp *qsfp = dev_get_drvdata(dev);
++	u32 plugin = qsfp_connected_show(qsfp);
++
++	return sysfs_emit(buf, "%u\n", plugin);
++}
++
++static DEVICE_ATTR_RO(dfl_qsfp_connected);
++
++static struct attribute *qsfp_mem_attrs[] = {
++	&dev_attr_dfl_qsfp_connected.attr,
++	NULL,
++};
++ATTRIBUTE_GROUPS(qsfp_mem);
++
++static int qsfp_dfl_probe(struct dfl_device *dfl_dev)
++{
++	struct device *dev = &dfl_dev->dev;
++	struct qsfp *qsfp;
++	int ret = 0;
++
++	qsfp = devm_kzalloc(dev, sizeof(*qsfp), GFP_KERNEL);
++	if (!qsfp)
++		return -ENOMEM;
++
++	qsfp->base = devm_ioremap_resource(dev, &dfl_dev->mmio_res);
++	if (!qsfp->base)
++		return -ENOMEM;
++
++	qsfp->dev = dev;
++	mutex_init(&qsfp->lock);
++
++	dev_set_drvdata(dev, qsfp);
++
++	ret = qsfp_init_work(qsfp);
++	if (ret != 0) {
++		dev_err(dev, "Failed to initialize delayed work to read QSFP\n");
++		return ret;
++	}
++	return qsfp_register_regmap(qsfp);
++}
++
++static void qsfp_dfl_remove(struct dfl_device *dfl_dev)
++{
++	struct device *dev = &dfl_dev->dev;
++	struct qsfp *qsfp = dev_get_drvdata(dev);
++
++	qsfp_remove_device(qsfp);
++}
++
++#define FME_FEATURE_ID_QSFP 0x13
++
++static const struct dfl_device_id qsfp_ids[] = {
++	{ FME_ID, FME_FEATURE_ID_QSFP },
++	{ }
++};
++
++static struct dfl_driver qsfp_driver = {
++	.drv = {
++		.name = "qsfp-mem",
++		.dev_groups = qsfp_mem_groups,
++	},
++	.id_table = qsfp_ids,
++	.probe = qsfp_dfl_probe,
++	.remove = qsfp_dfl_remove,
++};
++
++module_dfl_driver(qsfp_driver);
++MODULE_DEVICE_TABLE(dfl, qsfp_ids);
++MODULE_DESCRIPTION("Intel(R) Memory based QSFP DFL driver");
++MODULE_AUTHOR("Intel Corporation");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/net/phy/qsfp-mem-platform.c b/drivers/net/phy/qsfp-mem-platform.c
+new file mode 100644
+index 000000000000..92193614cd47
+--- /dev/null
++++ b/drivers/net/phy/qsfp-mem-platform.c
+@@ -0,0 +1,95 @@
++// SPDX-License-Identifier: GPL-2.0
++
++/* Intel(R) Memory based QSFP driver for platform devices.
++ *
++ * Copyright (C) 2022 Intel Corporation. All rights reserved.
++ */
++
++#include <linux/phy/qsfp-mem.h>
++#include <linux/bitfield.h>
++#include <linux/module.h>
++#include <linux/of_address.h>
++#include <linux/of_device.h>
++#include <linux/processor.h>
++#include <linux/slab.h>
++
++#define INTEL_QSFP_MEM_CONTROLLER_NAME "qsfp-mem-ctrl"
++
++static int qsfp_platform_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct resource *region = NULL;
++	struct resource *qsfpconfig = NULL;
++	struct qsfp *qsfp = NULL;
++	int ret = 0;
++
++	qsfp = devm_kzalloc(dev, sizeof(*qsfp), GFP_KERNEL);
++	if (!qsfp)
++		return -ENOMEM;
++
++	qsfp->dev = dev;
++	mutex_init(&qsfp->lock);
++	platform_set_drvdata(pdev, qsfp);
++
++	/* QSFP Mem address space */
++	qsfpconfig = platform_get_resource_byname(pdev, IORESOURCE_MEM,
++						  INTEL_QSFP_MEM_CONTROLLER_NAME);
++	if (!qsfpconfig) {
++		dev_err(dev, "resource %s not defined\n", INTEL_QSFP_MEM_CONTROLLER_NAME);
++		return -ENODEV;
++	}
++
++	region = devm_request_mem_region(dev, qsfpconfig->start,
++					 resource_size(qsfpconfig), dev_name(dev));
++	if (!region) {
++		dev_err(dev, "unable to request %s\n", INTEL_QSFP_MEM_CONTROLLER_NAME);
++		return -EBUSY;
++	}
++	qsfp->base = devm_ioremap(dev, region->start, resource_size(region));
++	if (!(qsfp->base)) {
++		dev_err(dev, "ioremap of %s failed!", INTEL_QSFP_MEM_CONTROLLER_NAME);
++		return -ENOMEM;
++	}
++
++	ret = qsfp_init_work(qsfp);
++	if (ret != 0) {
++		dev_err(dev, "Failed to initialize delayed work to read QSFP\n");
++		return ret;
++	}
++
++	return qsfp_register_regmap(qsfp);
++}
++
++static int qsfp_platform_remove(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct qsfp *qsfp = dev_get_drvdata(dev);
++
++	qsfp_remove_device(qsfp);
++	return 0;
++}
++
++static const struct of_device_id intel_fpga_qsfp_mem_ids[] = {
++	{ .compatible = "intel,qsfp-mem",
++		.data = NULL, },
++	{},
++};
++MODULE_DEVICE_TABLE(of, intel_fpga_qsfp_mem_ids);
++
++static struct platform_driver qsfp_driver = {
++	.probe      = qsfp_platform_probe,
++	.remove     = qsfp_platform_remove,
++	.suspend    = NULL,
++	.resume     = NULL,
++	.driver     = {
++		.name   = "intel,qsfp-mem",
++		.owner  = THIS_MODULE,
++		.of_match_table = intel_fpga_qsfp_mem_ids,
++	},
++};
++
++module_platform_driver(qsfp_driver);
++MODULE_DESCRIPTION("Intel(R) Memory based QSFP Platform driver");
++MODULE_AUTHOR("Intel Corporation");
++MODULE_LICENSE("GPL");
++
+diff --git a/include/linux/phy/qsfp-mem.h b/include/linux/phy/qsfp-mem.h
+new file mode 100644
+index 000000000000..cab00906dc34
+--- /dev/null
++++ b/include/linux/phy/qsfp-mem.h
+@@ -0,0 +1,50 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++/* Intel(R) Memory based core QSFP driver header.
++ *
++ * Copyright (C) 2022 Intel Corporation. All rights reserved.
++ */
++
++#ifndef __LINUX_QSFP_MEM_H
++#define __LINUX_QSFP_MEM_H
++
++#include <linux/bitfield.h>
++#include <linux/etherdevice.h>
++#include <linux/ethtool.h>
++#include <linux/i2c.h>
++#include <linux/io-64-nonatomic-lo-hi.h>
++#include <linux/module.h>
++#include <linux/netdevice.h>
++#include <linux/regmap.h>
++#include <linux/uaccess.h>
++
++enum qsfp_init_status {
++	QSFP_INIT_RESET = 0,
++	QSFP_INIT_DONE,
++};
++
++/**
++ * struct qsfp - device private data structure
++ * @base: base address of the device.
++ * @regmap: regmap for device.
++ * @dwork: work struct for checking qsfp plugin status.
++ * @dev: point to device.
++ * @init: qsfp init status.
++ * @lock: lock for qsfp initial function and status.
++ */
++struct qsfp {
++	void __iomem *base;
++	struct regmap *regmap;
++	struct delayed_work dwork;
++	struct device *dev;
++	enum qsfp_init_status init;
++	struct mutex lock;
++};
++
++int qsfp_init_work(struct qsfp *qsfp);
++int qsfp_register_regmap(struct qsfp *qsfp);
++void qsfp_remove_device(struct qsfp *qsfp);
++int check_qsfp_plugin(struct qsfp *qsfp);
++u32 qsfp_connected_show(struct qsfp *qsfp);
++
++#endif //__LINUX_QSFP_MEM_H
+-- 
+2.39.0
+

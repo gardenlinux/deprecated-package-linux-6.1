@@ -1,0 +1,68 @@
+From d1fc5e74f349ecfb6da4d5bac25d0e582076f4b1 Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Wed, 5 Oct 2022 09:33:41 -0700
+Subject: [PATCH 82/93] mfd: intel-m10-bmc: Change staging size to a variable
+
+The size of the staging area in FLASH for FPGA updates is dependent on the
+size of the FPGA. Currently, the staging size is defined as a constant.
+Larger FPGAs are coming soon and it will soon be necessary to support
+different sizes for the staging area. Add a new staging_size member to the
+m10bmc_csr structure to support a variable staging size.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/mfd/intel-m10-bmc-core.c  | 3 +++
+ include/linux/mfd/intel-m10-bmc.h | 2 ++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/drivers/mfd/intel-m10-bmc-core.c b/drivers/mfd/intel-m10-bmc-core.c
+index 9f389676c1c0..624ffe4ebedc 100644
+--- a/drivers/mfd/intel-m10-bmc-core.c
++++ b/drivers/mfd/intel-m10-bmc-core.c
+@@ -33,6 +33,7 @@ static const struct m10bmc_csr m10bmc_pmci_csr = {
+ 	.pr_sdm_csk_reg = M10BMC_PMCI_PR_CSK,
+ 	.sr_sdm_reh_reg = M10BMC_PMCI_SR_RH0,
+ 	.sr_sdm_csk_reg = M10BMC_PMCI_SR_CSK,
++	.staging_size = M10BMC_STAGING_SIZE,
+ };
+ 
+ static const struct m10bmc_csr m10bmc_pmci2_csr = {
+@@ -57,6 +58,7 @@ static const struct m10bmc_csr m10bmc_pmci2_csr = {
+ 	.pr_sdm_csk_reg = M10BMC_PMCI_PR_CSK,
+ 	.sr_sdm_reh_reg = M10BMC_PMCI_SR_RH0,
+ 	.sr_sdm_csk_reg = M10BMC_PMCI_SR_CSK,
++	.staging_size = M10BMC_STAGING_SIZE,
+ };
+ 
+ static const struct m10bmc_csr m10bmc_spi_csr = {
+@@ -77,6 +79,7 @@ static const struct m10bmc_csr m10bmc_spi_csr = {
+ 	.pr_reh_addr = PR_REH_ADDR,
+ 	.pr_magic = PR_PROG_MAGIC,
+ 	.rsu_update_counter = STAGING_FLASH_COUNT,
++	.staging_size = M10BMC_STAGING_SIZE,
+ };
+ 
+ static struct mfd_cell m10bmc_n6000_bmc_subdevs[] = {
+diff --git a/include/linux/mfd/intel-m10-bmc.h b/include/linux/mfd/intel-m10-bmc.h
+index 562337423ed7..90242a4e446e 100644
+--- a/include/linux/mfd/intel-m10-bmc.h
++++ b/include/linux/mfd/intel-m10-bmc.h
+@@ -337,6 +337,7 @@ enum m10bmc_type {
+ #define pr_sdm_csk_reg(m9bmc) ((m10bmc)->csr->pr_sdm_csk_reg)
+ #define sr_sdm_reh_reg(m10bmc) ((m10bmc)->csr->sr_sdm_reh_reg)
+ #define sr_sdm_csk_reg(m10bmc) ((m10bmc)->csr->sr_sdm_csk_reg)
++#define staging_size(m10bmc) ((m10bmc)->csr->staging_size)
+ 
+ enum m10bmc_fw_state {
+ 	M10BMC_FW_STATE_NORMAL,
+@@ -368,6 +369,7 @@ struct m10bmc_csr {
+ 	unsigned int pr_sdm_csk_reg;
+ 	unsigned int sr_sdm_reh_reg;
+ 	unsigned int sr_sdm_csk_reg;
++	unsigned int staging_size;
+ };
+ 
+ /**
+-- 
+2.39.0
+

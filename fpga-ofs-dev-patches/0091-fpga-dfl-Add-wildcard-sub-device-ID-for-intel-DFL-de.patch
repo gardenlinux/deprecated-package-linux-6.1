@@ -1,0 +1,33 @@
+From b7d269d2b96d9a8dde97ae44efa6e258b1165aea Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Tue, 16 Aug 2022 10:25:02 -0600
+Subject: [PATCH 91/93] fpga: dfl: Add wildcard sub-device ID for intel DFL
+ devs
+
+The DFL device ID requires subdevice IDs. For intel devices, allow a
+wildcard for the subdevice ID. This is intended for internal use only and
+should not be upstreamed.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/fpga/dfl-pci.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/fpga/dfl-pci.c b/drivers/fpga/dfl-pci.c
+index bf9953516566..949a06cf8c28 100644
+--- a/drivers/fpga/dfl-pci.c
++++ b/drivers/fpga/dfl-pci.c
+@@ -119,6 +119,10 @@ static struct pci_device_id cci_pcie_id_tbl[] = {
+ 			PCI_VENDOR_ID_INTEL, PCIE_SUBDEVICE_ID_INTEL_C6100),},
+ 	{PCI_DEVICE_SUB(PCI_VENDOR_ID_INTEL, PCIE_DEVICE_ID_INTEL_DFL_VF,
+ 			PCI_VENDOR_ID_INTEL, PCIE_SUBDEVICE_ID_INTEL_C6100),},
++	{PCI_DEVICE_SUB(PCI_VENDOR_ID_INTEL, PCIE_DEVICE_ID_INTEL_DFL,
++			PCI_VENDOR_ID_INTEL, PCI_ANY_ID),},
++	{PCI_DEVICE_SUB(PCI_VENDOR_ID_INTEL, PCIE_DEVICE_ID_INTEL_DFL_VF,
++			PCI_VENDOR_ID_INTEL, PCI_ANY_ID),},
+ 	{PCI_DEVICE(PCI_VENDOR_ID_ALIBABA, PCIE_DEVICE_ID_ALIBABA_F5),},
+ 	{0,}
+ };
+-- 
+2.39.0
+

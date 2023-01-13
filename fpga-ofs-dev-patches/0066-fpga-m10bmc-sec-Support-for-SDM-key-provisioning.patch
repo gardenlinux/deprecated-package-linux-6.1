@@ -1,0 +1,63 @@
+From 9d480a9bc61aca5b2e809c2eedfcfc591fc29117 Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Mon, 4 Oct 2021 14:43:12 -0700
+Subject: [PATCH 66/93] fpga: m10bmc-sec: Support for SDM key provisioning
+
+SDM key provisioning for the N6000 requires a new handshake with
+N6000 BMC firmware. This change adds the "sdm" keyword to the
+available_images sysfs file and extends the image_load sysfs support
+accordingly.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/fpga/intel-m10-bmc-sec-update.c | 12 ++++++++++++
+ include/linux/mfd/intel-m10-bmc.h       |  3 +++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/drivers/fpga/intel-m10-bmc-sec-update.c b/drivers/fpga/intel-m10-bmc-sec-update.c
+index a24755c31c6d..d6ffb33e2f80 100644
+--- a/drivers/fpga/intel-m10-bmc-sec-update.c
++++ b/drivers/fpga/intel-m10-bmc-sec-update.c
+@@ -141,6 +141,14 @@ static int pmci_sec_fpga_image_load(struct m10bmc_sec *sec,
+ 				  PMCI_FPGA_RP_LOAD);
+ }
+ 
++static int pmci_sec_sdm_image_load(struct m10bmc_sec *sec)
++{
++	return regmap_update_bits(sec->m10bmc->regmap,
++				  m10bmc_base(sec->m10bmc) +
++				  M10BMC_PMCI_SDM_CTRL_STS,
++				  PMCI_SDM_IMG_REQ, PMCI_SDM_IMG_REQ);
++}
++
+ static int m10bmc_sec_bmc_image_load_0(struct m10bmc_sec *sec)
+ {
+ 	return m10bmc_sec_bmc_image_load(sec, 0);
+@@ -379,6 +387,10 @@ static struct image_load pmci_image_load_hndlrs[] = {
+ 		.name = "fpga_user2",
+ 		.load_image = pmci_sec_fpga_image_load_2,
+ 	},
++	{
++		.name = "sdm",
++		.load_image = pmci_sec_sdm_image_load,
++	},
+ 	{}
+ };
+ 
+diff --git a/include/linux/mfd/intel-m10-bmc.h b/include/linux/mfd/intel-m10-bmc.h
+index b25097cc3147..22f4e82edbe0 100644
+--- a/include/linux/mfd/intel-m10-bmc.h
++++ b/include/linux/mfd/intel-m10-bmc.h
+@@ -230,6 +230,9 @@ enum m10bmc_type {
+ #define PMCI_FPGA_RECONF_PAGE  GENMASK(22, 20)
+ #define PMCI_FPGA_RP_LOAD      BIT(23)
+ 
++#define M10BMC_PMCI_SDM_CTRL_STS 0x230
++#define PMCI_SDM_IMG_REQ	BIT(0)
++
+ #define PMCI_ERROR_LOG_ADDR  0x7fb0000
+ #define PMCI_ERROR_LOG_SIZE  0x40000
+ 
+-- 
+2.39.0
+

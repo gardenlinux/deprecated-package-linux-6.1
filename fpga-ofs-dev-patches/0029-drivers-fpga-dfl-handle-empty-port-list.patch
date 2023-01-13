@@ -1,0 +1,30 @@
+From 6a0fe7aeabbc22b12a1f7e6eee9e180e1f7c93ed Mon Sep 17 00:00:00 2001
+From: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+Date: Mon, 11 Jan 2021 10:52:56 -0800
+Subject: [PATCH 29/93] drivers: fpga: dfl: handle empty port list
+
+Not all FPGA designs managed by the DFL driver have a port.
+In these cases, don't write the Port Access Control register
+when enabling SRIOV.
+
+Signed-off-by: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+---
+ drivers/fpga/dfl.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/fpga/dfl.c b/drivers/fpga/dfl.c
+index b1b358b40f39..c4e64e25b7f5 100644
+--- a/drivers/fpga/dfl.c
++++ b/drivers/fpga/dfl.c
+@@ -1754,6 +1754,8 @@ int dfl_fpga_cdev_config_ports_vf(struct dfl_fpga_cdev *cdev, int num_vfs)
+ 	int ret = 0, port_count = 0;
+ 
+ 	mutex_lock(&cdev->lock);
++	if (list_empty(&cdev->port_dev_list))
++		goto done;
+ 
+ 	list_for_each_entry(fdata, &cdev->port_dev_list, node) {
+ 		if (fdata->dev)
+-- 
+2.39.0
+

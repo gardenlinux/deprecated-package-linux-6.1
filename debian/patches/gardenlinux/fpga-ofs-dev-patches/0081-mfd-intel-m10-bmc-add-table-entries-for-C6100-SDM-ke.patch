@@ -1,0 +1,32 @@
+From 140bb8fab0e193235271490a0ed282e53bcc5bb3 Mon Sep 17 00:00:00 2001
+From: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+Date: Tue, 9 Aug 2022 17:15:18 -0700
+Subject: [PATCH 81/93] mfd: intel-m10-bmc: add table entries for C6100 SDM key
+ material
+
+Add the entries for SDM root entry hash and key cancellation
+material
+
+Signed-off-by: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+---
+ drivers/mfd/intel-m10-bmc-core.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/mfd/intel-m10-bmc-core.c b/drivers/mfd/intel-m10-bmc-core.c
+index d1d06b9b851f..9f389676c1c0 100644
+--- a/drivers/mfd/intel-m10-bmc-core.c
++++ b/drivers/mfd/intel-m10-bmc-core.c
+@@ -53,6 +53,10 @@ static const struct m10bmc_csr m10bmc_pmci2_csr = {
+ 	.pr_reh_addr = 0x00810004,
+ 	.pr_magic = PMCI_PR_PROG_MAGIC,
+ 	.rsu_update_counter = 0x00860000,
++	.pr_sdm_reh_reg = M10BMC_PMCI_PR_RH0,
++	.pr_sdm_csk_reg = M10BMC_PMCI_PR_CSK,
++	.sr_sdm_reh_reg = M10BMC_PMCI_SR_RH0,
++	.sr_sdm_csk_reg = M10BMC_PMCI_SR_CSK,
+ };
+ 
+ static const struct m10bmc_csr m10bmc_spi_csr = {
+-- 
+2.39.0
+

@@ -1,0 +1,56 @@
+From 2b9ae09bf004ff8e8a5992129200d4fa1d830c1e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Martin=20Hundeb=C3=B8ll?= <mhu@silicom.dk>
+Date: Mon, 1 Feb 2021 13:20:46 +0100
+Subject: [PATCH 33/93] fpga: m10bmc-sec: add n5010 device id
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The Silicom n5010 PAC features the max10 bmc secure funtionality, so add
+it to the list of device id's, and enable it in the intel-m10-bmc
+multi-function driver.
+
+Signed-off-by: Martin Hundebøll <mhu@silicom.dk>
+---
+ drivers/fpga/intel-m10-bmc-sec-update.c | 5 +++++
+ drivers/mfd/intel-m10-bmc.c             | 1 +
+ 2 files changed, 6 insertions(+)
+
+diff --git a/drivers/fpga/intel-m10-bmc-sec-update.c b/drivers/fpga/intel-m10-bmc-sec-update.c
+index 63397445588d..92886883dd61 100644
+--- a/drivers/fpga/intel-m10-bmc-sec-update.c
++++ b/drivers/fpga/intel-m10-bmc-sec-update.c
+@@ -18,6 +18,7 @@
+ enum fpga_sec_type {
+ 	N3000BMC_SEC,
+ 	D5005BMC_SEC,
++	N5010BMC_SEC,
+ };
+ 
+ struct image_load;
+@@ -907,6 +908,10 @@ static const struct platform_device_id intel_m10bmc_sec_ids[] = {
+ 		.name = "d5005bmc-sec-update",
+ 		.driver_data = (unsigned long)D5005BMC_SEC,
+ 	},
++	{
++		.name = "n5010bmc-sec-update",
++		.driver_data = (unsigned long)N5010BMC_SEC,
++	},
+ 	{ }
+ };
+ 
+diff --git a/drivers/mfd/intel-m10-bmc.c b/drivers/mfd/intel-m10-bmc.c
+index af688b5c6dc6..4ae1e581421e 100644
+--- a/drivers/mfd/intel-m10-bmc.c
++++ b/drivers/mfd/intel-m10-bmc.c
+@@ -40,6 +40,7 @@ static const struct regmap_range n3000_fw_handshake_regs[] = {
+ 
+ static struct mfd_cell m10bmc_n5010_subdevs[] = {
+ 	{ .name = "n5010bmc-hwmon" },
++	{ .name = "n5010bmc-sec-update" },
+ };
+ 
+ static const struct regmap_range n5010_fw_handshake_regs[] = {
+-- 
+2.39.0
+

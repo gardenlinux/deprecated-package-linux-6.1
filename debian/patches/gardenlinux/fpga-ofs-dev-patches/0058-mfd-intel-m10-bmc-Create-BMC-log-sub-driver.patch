@@ -1,0 +1,176 @@
+From 51cc2d8da2fa0be45ac63234a6269675063ca441 Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Fri, 19 Feb 2021 15:11:47 -0800
+Subject: [PATCH 58/93] mfd: intel-m10-bmc: Create BMC log sub-driver
+
+The PMCI MAX10 BMC contains high and low timestamp registers that are
+to be periodically written by the host driver to facilitate BMC error
+logs. Add a kernel worker thread at BMC initialization time to update
+the BMC timestamp registers at a frequency of once per minute.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/mfd/Kconfig               |  9 ++++
+ drivers/mfd/Makefile              |  1 +
+ drivers/mfd/intel-m10-bmc-core.c  |  3 +-
+ drivers/mfd/intel-m10-bmc-log.c   | 87 +++++++++++++++++++++++++++++++
+ include/linux/mfd/intel-m10-bmc.h |  3 ++
+ 5 files changed, 102 insertions(+), 1 deletion(-)
+ create mode 100644 drivers/mfd/intel-m10-bmc-log.c
+
+diff --git a/drivers/mfd/Kconfig b/drivers/mfd/Kconfig
+index f032244c9b7e..19288a1edf6b 100644
+--- a/drivers/mfd/Kconfig
++++ b/drivers/mfd/Kconfig
+@@ -2250,6 +2250,15 @@ config MFD_INTEL_M10_BMC_PMCI
+ 	  additional drivers must be enabled in order to use the functionality
+ 	  of the device.
+ 
++config MFD_INTEL_M10_BMC_LOG
++	tristate "Intel MAX 10 Board Management Controller Log Driver"
++	depends on MFD_INTEL_M10_BMC_CORE
++	help
++	  Support for the Intel MAX 10 board management controller log
++
++	  This driver provides timestamp synchronization with the MAX10
++	  BMC log.
++
+ config MFD_RSMU_I2C
+ 	tristate "Renesas Synchronization Management Unit with I2C"
+ 	depends on I2C && OF
+diff --git a/drivers/mfd/Makefile b/drivers/mfd/Makefile
+index 7559362cb438..fea1525602ff 100644
+--- a/drivers/mfd/Makefile
++++ b/drivers/mfd/Makefile
+@@ -276,6 +276,7 @@ intel-m10-bmc-objs             := intel-m10-bmc-core.o
+ obj-$(CONFIG_MFD_INTEL_M10_BMC_CORE)   += intel-m10-bmc.o
+ obj-$(CONFIG_MFD_INTEL_M10_BMC_SPI)   += intel-m10-bmc-spi.o
+ obj-$(CONFIG_MFD_INTEL_M10_BMC_PMCI)  += intel-m10-bmc-pmci.o
++obj-$(CONFIG_MFD_INTEL_M10_BMC_LOG)  += intel-m10-bmc-log.o
+ 
+ obj-$(CONFIG_MFD_ATC260X)	+= atc260x-core.o
+ obj-$(CONFIG_MFD_ATC260X_I2C)	+= atc260x-i2c.o
+diff --git a/drivers/mfd/intel-m10-bmc-core.c b/drivers/mfd/intel-m10-bmc-core.c
+index b900b651abf1..a84cc0ca1908 100644
+--- a/drivers/mfd/intel-m10-bmc-core.c
++++ b/drivers/mfd/intel-m10-bmc-core.c
+@@ -53,7 +53,8 @@ static const struct m10bmc_csr m10bmc_spi_csr = {
+ 
+ static struct mfd_cell m10bmc_n6000_bmc_subdevs[] = {
+ 	{ .name = "n6000bmc-hwmon" },
+-	{ .name = "n6000bmc-sec-update" }
++	{ .name = "n6000bmc-sec-update" },
++	{ .name = "n6000bmc-log" }
+ };
+ 
+ static const struct regmap_range null_fw_handshake_regs[0];
+diff --git a/drivers/mfd/intel-m10-bmc-log.c b/drivers/mfd/intel-m10-bmc-log.c
+new file mode 100644
+index 000000000000..53ffeb6083ac
+--- /dev/null
++++ b/drivers/mfd/intel-m10-bmc-log.c
+@@ -0,0 +1,87 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Intel Max10 Board Management Controller Secure Update Driver
++ *
++ * Copyright (C) 2021 Intel Corporation. All rights reserved.
++ *
++ */
++
++#include <linux/bitfield.h>
++#include <linux/mfd/intel-m10-bmc.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++
++struct m10bmc_log {
++	struct device *dev;
++	struct intel_m10bmc *m10bmc;
++	unsigned int freq_s;		/* update frequency in seconds */
++	struct delayed_work dwork;
++};
++
++#define M10BMC_TIMESTAMP_FREQ   60	/* 60 seconds between updates */
++#define TIME_LOW	GENMASK(31, 0)
++#define TIME_HIGH	GENMASK(63, 32)
++static void m10bmc_log_time_sync(struct work_struct *work)
++{
++	struct delayed_work *dwork;
++	u32 time_high, time_low;
++	struct m10bmc_log *log;
++	s64 time_ms;
++	int ret;
++
++	dwork = to_delayed_work(work);
++	log = container_of(dwork, struct m10bmc_log, dwork);
++
++	time_ms = ktime_to_ms(ktime_get_real());
++	time_low = (u32)FIELD_GET(TIME_LOW, time_ms);
++	time_high = (u32)FIELD_GET(TIME_HIGH, time_ms);
++	ret = regmap_write(log->m10bmc->regmap, m10bmc_base(log->m10bmc) +
++			   M10BMC_PMCI_TIME_HIGH, time_high);
++	if (!ret)
++		ret = regmap_write(log->m10bmc->regmap,
++				   m10bmc_base(log->m10bmc) +
++				   M10BMC_PMCI_TIME_LOW, time_low);
++	if (ret)
++		dev_err_once(log->dev,
++			     "Failed to update BMC timestamp: %d\n", ret);
++
++	schedule_delayed_work(&log->dwork, log->freq_s * HZ);
++}
++
++static int m10bmc_log_probe(struct platform_device *pdev)
++{
++	struct m10bmc_log *ddata;
++
++	ddata = devm_kzalloc(&pdev->dev, sizeof(*ddata), GFP_KERNEL);
++	if (!ddata)
++		return -ENOMEM;
++
++	ddata->dev = &pdev->dev;
++	ddata->m10bmc = dev_get_drvdata(pdev->dev.parent);
++	ddata->freq_s = M10BMC_TIMESTAMP_FREQ;
++	INIT_DELAYED_WORK(&ddata->dwork, m10bmc_log_time_sync);
++	dev_set_drvdata(&pdev->dev, ddata);
++
++	m10bmc_log_time_sync(&ddata->dwork.work);
++
++	return 0;
++}
++
++static int m10bmc_log_remove(struct platform_device *pdev)
++{
++	struct m10bmc_log *ddata = dev_get_drvdata(&pdev->dev);
++
++	cancel_delayed_work_sync(&ddata->dwork);
++	return 0;
++}
++
++static struct platform_driver intel_m10bmc_log_driver = {
++	.probe = m10bmc_log_probe,
++	.remove = m10bmc_log_remove,
++};
++module_platform_driver(intel_m10bmc_log_driver);
++
++MODULE_ALIAS("platform:n6000bmc-log");
++MODULE_AUTHOR("Intel Corporation");
++MODULE_DESCRIPTION("Intel MAX10 BMC Log");
++MODULE_LICENSE("GPL v2");
+diff --git a/include/linux/mfd/intel-m10-bmc.h b/include/linux/mfd/intel-m10-bmc.h
+index bea94cf40624..1dccd0513c6b 100644
+--- a/include/linux/mfd/intel-m10-bmc.h
++++ b/include/linux/mfd/intel-m10-bmc.h
+@@ -182,6 +182,9 @@ enum m10bmc_type {
+ #define M10BMC_PMCI_MAC_LOW    0x20
+ #define M10BMC_PMCI_MAC_HIGH    0x24
+ 
++#define M10BMC_PMCI_TIME_LOW	0x178
++#define M10BMC_PMCI_TIME_HIGH	0x17C
++
+ #define M10BMC_PMCI_FLASH_CTRL 0x1d0
+ #define FLASH_MUX_SELECTION GENMASK(2, 0)
+ #define FLASH_MUX_IDLE 0
+-- 
+2.39.0
+
