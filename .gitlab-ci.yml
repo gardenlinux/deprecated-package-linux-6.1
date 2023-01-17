@@ -11,9 +11,9 @@ variables:
   DEB_BUILD_PROFILES: nodoc nopython pkg.linux.nokerneldbg pkg.linux.nosource
   BUILD_ARCH_ALL: 'true'
 
-#build amd64:
-#  tags:
-#  - gardenlinux-build-amd64-large
+build amd64:
+  tags:
+  - gardenlinux-build-amd64-large
 
 build arm64:
   tags: 
