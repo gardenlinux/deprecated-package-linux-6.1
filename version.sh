@@ -1,6 +1,6 @@
 SOURCE_UPSTREAM_VRSION=6.1
 SOURCE_NAME=linux-$SOURCE_UPSTREAM_VRSION
-DEBIAN_REF=debian/6.1.4-1
+DEBIAN_REF=debian/6.1.8-1
 #UPSTREAM_VERSION_OVERRIDE=
 
 DEBIAN_REPO=https://salsa.debian.org/kernel-team/linux.git
