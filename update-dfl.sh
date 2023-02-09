@@ -4,7 +4,7 @@ set -exuo pipefail
 workingDir="$(readlink -f "$(pwd)")"
 srcDir="linux-dfl"
 DFL_BRANCH="fpga-ofs-dev"
-KERNEL_VERSION="6.1.5"
+KERNEL_VERSION="6.1.11"
 OUTPUT_PATCH_FOLDER="${DFL_BRANCH}-patches"
 
 if [[ ! -d ${srcDir} ]]; then
@@ -33,6 +33,6 @@ mv "${OUTPUT_PATCH_FOLDER}" "${workingDir}"
 echo "### Done. Please verify patches in ${OUTPUT_PATCH_FOLDER}, and place them manually to debian/patches/gardenlinux/dfl_patches "
 popd
 
-#rm -rf ${workingDir}/debian/patches/gardenlinux/dfl_patches
-#mv ${OUTPUT_PATCH_FOLDER} debian/patches/gardenlinux/dfl_patches
+rm -rf ${workingDir}/debian/patches/gardenlinux/dfl_patches
+mv ${OUTPUT_PATCH_FOLDER} debian/patches/gardenlinux/dfl_patches
 
