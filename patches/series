@@ -1,3 +1,4 @@
+update-kernelvariables-debian-patch.patch
 reverse-extract-build-location-back-to-scripts.patch
 abiname-use-full-version.patch
 remove-rtla-from-rules-real.patch
