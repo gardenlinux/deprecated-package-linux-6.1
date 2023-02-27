@@ -4,7 +4,7 @@ set -exuo pipefail
 workingDir="$(readlink -f "$(pwd)")"
 srcDir="linux-dfl"
 DFL_BRANCH="fpga-ofs-dev"
-KERNEL_VERSION="6.1.11"
+KERNEL_VERSION="6.1.14"
 OUTPUT_PATCH_FOLDER="${DFL_BRANCH}-patches"
 
 if [[ ! -d ${srcDir} ]]; then
@@ -28,7 +28,7 @@ pushd "${srcDir}"
 echo '### Creating patches ...'
 git fetch -t linux-stable
 git checkout "${DFL_BRANCH}"
-git format-patch -o "${OUTPUT_PATCH_FOLDER}" --first-parent "v${KERNEL_VERSION}..${DFL_BRANCH}"
+git format-patch --no-signature -N -o "${OUTPUT_PATCH_FOLDER}" --first-parent --no-merges "v${KERNEL_VERSION}..${DFL_BRANCH}"
 mv "${OUTPUT_PATCH_FOLDER}" "${workingDir}"
 echo "### Done. Please verify patches in ${OUTPUT_PATCH_FOLDER}, and place them manually to debian/patches/gardenlinux/dfl_patches "
 popd
