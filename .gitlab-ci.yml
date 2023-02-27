@@ -8,7 +8,7 @@ stages:
 
 variables:
   DEB_BUILD_OPTIONS: nodoc terse
-  DEB_BUILD_PROFILES: nodoc nopython pkg.linux.nokerneldbg 
+  DEB_BUILD_PROFILES: nodoc nopython
   BUILD_ARCH_ALL: 'true'
 
 build amd64:
