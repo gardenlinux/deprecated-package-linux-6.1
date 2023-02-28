@@ -1,6 +1,9 @@
 # ---- Intel DFL Configs
 # see intel-dfl wiki: https://github.com/OPAE/linux-dfl/wiki#config-file
 
+# Non-DFL requirements
+CONFIG_REGMAP=y
+
 # Core FPGA support
 CONFIG_FPGA=m
 CONFIG_FPGA_BRIDGE=m
