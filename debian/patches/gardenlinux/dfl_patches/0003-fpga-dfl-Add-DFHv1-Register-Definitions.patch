@@ -1,0 +1,97 @@
+From a5331b27401c42badff813d8a5333eaded7db4aa Mon Sep 17 00:00:00 2001
+From: Basheer Ahmed Muddebihal <basheer.ahmed.muddebihal@linux.intel.com>
+Date: Tue, 3 May 2022 19:57:14 -0700
+Subject: [PATCH] fpga: dfl: Add DFHv1 Register Definitions
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This patch adds the definitions for DFHv1 header and related register
+bitfields.
+
+Signed-off-by: Basheer Ahmed Muddebihal <basheer.ahmed.muddebihal@linux.intel.com>
+Co-developed-by: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+Signed-off-by: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+Reviewed-by: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Reviewed-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+---
+v11: no change
+
+v10: no change
+
+v9: no change
+
+v8: add Rb Andy Shevchenko
+
+v7: no change
+
+v6: remove parameter definitions from include/linux/dfl.h
+
+v5: consistently use fields for parameter data
+    s/EOL/EOP/ to match doc
+    remove unneeded mask
+    added Co-developed-by
+
+v4: s/MSIX/MSI_X/g
+    move kerneldoc to implementation
+    don't change copyright date
+
+v3:
+    keep DFHv1 definitions "hidden" in drivers/fpga/dfl.h
+
+v2: clean up white space and one line comments
+    remove extra space in commit
+    use uniform number of digits in constants
+    don't change copyright date because of removed content
+---
+ drivers/fpga/dfl.h | 32 ++++++++++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+diff --git a/drivers/fpga/dfl.h b/drivers/fpga/dfl.h
+index 06cfcd5e84bb..fc59f33367ee 100644
+--- a/drivers/fpga/dfl.h
++++ b/drivers/fpga/dfl.h
+@@ -74,11 +74,43 @@
+ #define DFH_REVISION		GENMASK_ULL(15, 12)	/* Feature revision */
+ #define DFH_NEXT_HDR_OFST	GENMASK_ULL(39, 16)	/* Offset to next DFH */
+ #define DFH_EOL			BIT_ULL(40)		/* End of list */
++#define DFH_VERSION		GENMASK_ULL(59, 52)	/* DFH version */
+ #define DFH_TYPE		GENMASK_ULL(63, 60)	/* Feature type */
+ #define DFH_TYPE_AFU		1
+ #define DFH_TYPE_PRIVATE	3
+ #define DFH_TYPE_FIU		4
+ 
++/*
++ * DFHv1 Register Offset definitons
++ * In DHFv1, DFH + GUID + CSR_START + CSR_SIZE_GROUP + PARAM_HDR + PARAM_DATA
++ * as common header registers
++ */
++#define DFHv1_CSR_ADDR		0x18  /* CSR Register start address */
++#define DFHv1_CSR_SIZE_GRP	0x20  /* Size of Reg Block and Group/tag */
++#define DFHv1_PARAM_HDR		0x28  /* Optional First Param header */
++
++/*
++ * CSR Rel Bit, 1'b0 = relative (offset from feature DFH start),
++ * 1'b1 = absolute (ARM or other non-PCIe use)
++ */
++#define DFHv1_CSR_ADDR_REL	BIT_ULL(0)
++
++/* CSR Header Register Bit Definitions */
++#define DFHv1_CSR_ADDR_MASK       GENMASK_ULL(63, 1)  /* 63:1 of CSR address */
++
++/* CSR SIZE Goup Register Bit Definitions */
++#define DFHv1_CSR_SIZE_GRP_INSTANCE_ID	GENMASK_ULL(15, 0)	/* Enumeration instantiated IP */
++#define DFHv1_CSR_SIZE_GRP_GROUPING_ID	GENMASK_ULL(30, 16)	/* Group Features/interfaces */
++#define DFHv1_CSR_SIZE_GRP_HAS_PARAMS	BIT_ULL(31)		/* Presence of Parameters */
++#define DFHv1_CSR_SIZE_GRP_SIZE		GENMASK_ULL(63, 32)	/* Size of CSR Block in bytes */
++
++/* PARAM Header Register Bit Definitions */
++#define DFHv1_PARAM_HDR_ID		GENMASK_ULL(15, 0) /* Id of this Param  */
++#define DFHv1_PARAM_HDR_VER		GENMASK_ULL(31, 16) /* Version Param */
++#define DFHv1_PARAM_HDR_NEXT_OFFSET	GENMASK_ULL(63, 35) /* Offset of next Param */
++#define DFHv1_PARAM_HDR_NEXT_EOP	BIT_ULL(32)
++#define DFHv1_PARAM_DATA		0x08  /* Offset of Param data from Param header */
++
+ /* Next AFU Register Bitfield */
+ #define NEXT_AFU_NEXT_DFH_OFST	GENMASK_ULL(23, 0)	/* Offset to next AFU */
+ 
