@@ -10,6 +10,7 @@ variables:
   DEB_BUILD_OPTIONS: nodoc terse
   DEB_BUILD_PROFILES: nodoc nopython
   BUILD_ARCH_ALL: 'true'
+  EXCLUDE_ARTIFACT: '_output/*-dbg_*.deb'
 
 build amd64:
   tags:
