@@ -1,0 +1,21 @@
+--- a/drivers/base/regmap/Kconfig	2023-02-28 14:24:53.087944452 +0100
++++ b/drivers/base/regmap/Kconfig	2023-02-28 14:25:41.491858204 +0100
+@@ -4,7 +4,7 @@
+ # subsystems should select the appropriate symbols.
+ 
+ config REGMAP
+-	default y if (REGMAP_I2C || REGMAP_SPI || REGMAP_SPMI || REGMAP_W1 || REGMAP_AC97 || REGMAP_MMIO || REGMAP_IRQ || REGMAP_SOUNDWIRE || REGMAP_SOUNDWIRE_MBQ || REGMAP_SCCB || REGMAP_I3C || REGMAP_SPI_AVMM || REGMAP_MDIO)
++	default y if (REGMAP_I2C || REGMAP_SPI || REGMAP_SPMI || REGMAP_W1 || REGMAP_AC97 || REGMAP_MMIO || REGMAP_IRQ || REGMAP_SOUNDWIRE || REGMAP_SOUNDWIRE_MBQ || REGMAP_SCCB || REGMAP_I3C || REGMAP_SPI_AVMM || REGMAP_MDIO || REGMAP_INDIRECT_REGISTER)
+ 	select IRQ_DOMAIN if REGMAP_IRQ
+ 	select MDIO_BUS if REGMAP_MDIO
+ 	bool
+--- a/drivers/net/ethernet/intel/Kconfig	2023-02-28 14:27:47.919630051 +0100
++++ b/drivers/net/ethernet/intel/Kconfig	2023-02-28 14:28:23.847564543 +0100
+@@ -375,6 +375,7 @@
+ config S10HSSI
+ 	tristate "Control Plane Driver for Stratix 10 HSSI"
+ 	select REGMAP_INDIRECT_REGISTER
++	depends on FPGA_DFL
+ 	help
+ 	  This driver provides control plane support for an Stratix 10
+ 	  High Speed Serial Interface.
