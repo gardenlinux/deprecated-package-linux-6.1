@@ -3,7 +3,7 @@ set -exuo pipefail
 
 workingDir="$(readlink -f "$(pwd)")"
 srcDir="linux-dfl"
-DFL_BRANCH="fpga-ofs-dev"
+DFL_BRANCH="fpga-ofs-dev-6.1-lts"
 KERNEL_VERSION="6.1.14"
 OUTPUT_PATCH_FOLDER="${DFL_BRANCH}-patches"
 
@@ -35,4 +35,7 @@ popd
 
 rm -rf ${workingDir}/debian/patches/gardenlinux/dfl_patches
 mv ${OUTPUT_PATCH_FOLDER} debian/patches/gardenlinux/dfl_patches
+
+grep -rni "+++ b" | cut -d':' -f3 | sort | uniq > ${workingDir}/dfl-changed-files.list
+echo "List of modified files in ${workingDir}/dfl-changed-files.list"
 

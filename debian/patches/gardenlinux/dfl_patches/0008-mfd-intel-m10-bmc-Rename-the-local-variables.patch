@@ -1,0 +1,56 @@
+From 10fd073937bd8661abba0101176f08a9c1e7c330 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Ilpo=20J=C3=A4rvinen?= <ilpo.jarvinen@linux.intel.com>
+Date: Mon, 16 Jan 2023 12:08:37 +0200
+Subject: [PATCH] mfd: intel-m10-bmc: Rename the local variables
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Local variables directly interact with dev_get_drvdata/dev_set_drvdata
+should be named ddata.
+
+Reviewed-by: Russ Weight <russell.h.weight@intel.com>
+Reviewed-by: Xu Yilun <yilun.xu@intel.com>
+Acked-for-MFD-by: Lee Jones <lee@kernel.org>
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+---
+ drivers/mfd/intel-m10-bmc.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/mfd/intel-m10-bmc.c b/drivers/mfd/intel-m10-bmc.c
+index 12c522c16d83..2c26203c4799 100644
+--- a/drivers/mfd/intel-m10-bmc.c
++++ b/drivers/mfd/intel-m10-bmc.c
+@@ -81,15 +81,15 @@ static DEVICE_ATTR_RO(bmcfw_version);
+ static ssize_t mac_address_show(struct device *dev,
+ 				struct device_attribute *attr, char *buf)
+ {
+-	struct intel_m10bmc *max10 = dev_get_drvdata(dev);
++	struct intel_m10bmc *ddata = dev_get_drvdata(dev);
+ 	unsigned int macaddr_low, macaddr_high;
+ 	int ret;
+ 
+-	ret = m10bmc_sys_read(max10, M10BMC_MAC_LOW, &macaddr_low);
++	ret = m10bmc_sys_read(ddata, M10BMC_MAC_LOW, &macaddr_low);
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = m10bmc_sys_read(max10, M10BMC_MAC_HIGH, &macaddr_high);
++	ret = m10bmc_sys_read(ddata, M10BMC_MAC_HIGH, &macaddr_high);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -106,11 +106,11 @@ static DEVICE_ATTR_RO(mac_address);
+ static ssize_t mac_count_show(struct device *dev,
+ 			      struct device_attribute *attr, char *buf)
+ {
+-	struct intel_m10bmc *max10 = dev_get_drvdata(dev);
++	struct intel_m10bmc *ddata = dev_get_drvdata(dev);
+ 	unsigned int macaddr_high;
+ 	int ret;
+ 
+-	ret = m10bmc_sys_read(max10, M10BMC_MAC_HIGH, &macaddr_high);
++	ret = m10bmc_sys_read(ddata, M10BMC_MAC_HIGH, &macaddr_high);
+ 	if (ret)
+ 		return ret;
+ 

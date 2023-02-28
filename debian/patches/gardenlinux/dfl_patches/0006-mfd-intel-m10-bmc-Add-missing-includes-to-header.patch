@@ -1,0 +1,32 @@
+From 7712525b2327c8fe9930e085baa3c4c81b677607 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Ilpo=20J=C3=A4rvinen?= <ilpo.jarvinen@linux.intel.com>
+Date: Mon, 16 Jan 2023 12:08:35 +0200
+Subject: [PATCH] mfd: intel-m10-bmc: Add missing includes to header
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+linux/mfd/intel-m10-bmc.h is using:
+	- pr_err(), thus include also linux/dev_printk.h
+	- FIELD_GET(), this include also linux/bitfield.h
+	- GENMASK(), thus include also linux/bits.h
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+---
+ include/linux/mfd/intel-m10-bmc.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/include/linux/mfd/intel-m10-bmc.h b/include/linux/mfd/intel-m10-bmc.h
+index f0044b14136e..0d4db5d9d5af 100644
+--- a/include/linux/mfd/intel-m10-bmc.h
++++ b/include/linux/mfd/intel-m10-bmc.h
+@@ -7,6 +7,9 @@
+ #ifndef __MFD_INTEL_M10_BMC_H
+ #define __MFD_INTEL_M10_BMC_H
+ 
++#include <linux/bitfield.h>
++#include <linux/bits.h>
++#include <linux/dev_printk.h>
+ #include <linux/regmap.h>
+ 
+ #define M10BMC_LEGACY_BUILD_VER		0x300468
