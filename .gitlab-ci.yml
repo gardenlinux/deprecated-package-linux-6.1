@@ -26,6 +26,7 @@ include:
 - local: .gitlab/ci/test.yml
 - local: .gitlab/ci/test-config.yml
 - project: gardenlinux/gardenlinux-package-build
+  ref: debug-s3-artifact-upload
   file:
   - pipeline/workflow.yml
   - pipeline/variables.yml
