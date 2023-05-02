@@ -1,4 +1,4 @@
-# ---- Intel TDX Configs
+# ---- Intel TDX guest configs
 
+# Using linux upstream TDX guest support
 CONFIG_INTEL_TDX_GUEST=y
-# CONFIG_INTEL_TDX_ATTESTATION was removed in v3, it is no longer required
