@@ -1,0 +1,30 @@
+From 6cf2441cc0e24b2b85888c53c925f46cea227248 Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Fri, 31 Mar 2023 16:20:25 -0700
+Subject: [PATCH] Revert "fpga: dfl: fme: check buffer size before calling
+ vmalloc"
+
+This reverts commit 4ba1de2c24bc50a92b9b203dac92e7f431768177.
+
+This patch is reverted to remove a redundant null-check for
+port_pr.buffer_size.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/fpga/dfl-fme-pr.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/fpga/dfl-fme-pr.c b/drivers/fpga/dfl-fme-pr.c
+index 11d5c75d4c14..2d1f7718e883 100644
+--- a/drivers/fpga/dfl-fme-pr.c
++++ b/drivers/fpga/dfl-fme-pr.c
+@@ -95,9 +95,6 @@ static int fme_pr(struct platform_device *pdev, unsigned long arg)
+ 		return -EINVAL;
+ 	}
+ 
+-	if (port_pr.buffer_size == 0)
+-		return -EINVAL;
+-
+ 	buf = vmalloc(port_pr.buffer_size);
+ 	if (!buf)
+ 		return -ENOMEM;

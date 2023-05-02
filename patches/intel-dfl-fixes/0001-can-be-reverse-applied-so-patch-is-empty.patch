@@ -1,5 +1,5 @@
---- a/debian/patches/gardenlinux/dfl_patches/0001-fpga-m10bmc-sec-Fix-probe-rollback.patch	2023-02-27 15:59:22.829900197 +0100
-+++ b/debian/patches/gardenlinux/dfl_patches/0001-fpga-m10bmc-sec-Fix-probe-rollback.patch	2023-02-27 15:59:22.829900197 +0100
+--- a/debian/patches/gardenlinux/00-dfl_support/0001-fpga-m10bmc-sec-Fix-probe-rollback.patch	2023-02-27 15:59:22.829900197 +0100
++++ b/debian/patches/gardenlinux/00-dfl_support/0001-fpga-m10bmc-sec-Fix-probe-rollback.patch	2023-02-27 15:59:22.829900197 +0100
 @@ -1,56 +0,0 @@
 -From 51c3fb11ac0693beb3355b6bdd127ef026a9f034 Mon Sep 17 00:00:00 2001
 -From: =?UTF-8?q?Ilpo=20J=C3=A4rvinen?= <ilpo.jarvinen@linux.intel.com>
