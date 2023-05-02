@@ -1,0 +1,26 @@
+From cb0bb5811440dc1c67a4680a3c65ad988882d4b4 Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Mon, 6 Mar 2023 15:55:13 -0800
+Subject: [PATCH] ifpga:dfl: Fix spelling error in comment
+
+Change "revisition" to "revision" in comment block and align the comment
+with what has been upstreamed.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/fpga/dfl.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/fpga/dfl.h b/drivers/fpga/dfl.h
+index 8390c202d3b3..f79ba69f170b 100644
+--- a/drivers/fpga/dfl.h
++++ b/drivers/fpga/dfl.h
+@@ -274,7 +274,7 @@ struct dfl_feature_irq_ctx {
+  *
+  * @dev: ptr to pdev of the feature device which has the sub feature.
+  * @id: sub feature id.
+- * @revision: revisition of the instance of a feature.
++ * @revision: revision of this sub feature.
+  * @resource_index: each sub feature has one mmio resource for its registers.
+  *		    this index is used to find its mmio resource from the
+  *		    feature dev (platform device)'s resources.

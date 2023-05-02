@@ -4,7 +4,7 @@ set -exuo pipefail
 workingDir="$(readlink -f "$(pwd)")"
 srcDir="linux-dfl"
 DFL_BRANCH="fpga-ofs-dev-6.1-lts"
-KERNEL_VERSION="6.1.14"
+KERNEL_VERSION="6.1.27"
 OUTPUT_PATCH_FOLDER="${DFL_BRANCH}-patches"
 
 if [[ ! -d ${srcDir} ]]; then
@@ -30,11 +30,11 @@ git fetch -t linux-stable
 git checkout "${DFL_BRANCH}"
 git format-patch --no-signature -N -o "${OUTPUT_PATCH_FOLDER}" --first-parent --no-merges "v${KERNEL_VERSION}..${DFL_BRANCH}"
 mv "${OUTPUT_PATCH_FOLDER}" "${workingDir}"
-echo "### Done. Please verify patches in ${OUTPUT_PATCH_FOLDER}, and place them manually to debian/patches/gardenlinux/dfl_patches "
+echo "### Done. Please verify patches in ${OUTPUT_PATCH_FOLDER}, and place them manually to debian/patches/gardenlinux/00-dfl_support"
 popd
 
-rm -rf ${workingDir}/debian/patches/gardenlinux/dfl_patches
-mv ${OUTPUT_PATCH_FOLDER} debian/patches/gardenlinux/dfl_patches
+rm -rf ${workingDir}/debian/patches/gardenlinux/00-dfl_support
+mv ${OUTPUT_PATCH_FOLDER} debian/patches/gardenlinux/00-dfl_support
 
 grep -rni "+++ b" | cut -d':' -f3 | sort | uniq > ${workingDir}/dfl-changed-files.list
 echo "List of modified files in ${workingDir}/dfl-changed-files.list"

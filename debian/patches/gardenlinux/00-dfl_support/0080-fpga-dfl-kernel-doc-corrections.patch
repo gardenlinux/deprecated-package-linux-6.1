@@ -1,0 +1,62 @@
+From 38708a5f211627fa6edabc5e94fe882e3c5caf40 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Thu, 12 Jan 2023 22:37:20 -0800
+Subject: [PATCH] fpga: dfl: kernel-doc corrections
+
+Fix W=1 kernel-doc warnings in drivers/fpga/:
+
+drivers/fpga/dfl.c:54: warning: cannot understand function prototype: 'struct dfl_dev_info '
+drivers/fpga/dfl.c:74: warning: cannot understand function prototype: 'struct dfl_chardev_info '
+drivers/fpga/dfl-fme-pr.c:175: warning: Function parameter or member 'feature' not described in 'dfl_fme_create_mgr'
+drivers/fpga/dfl-fme-pr.c:280: warning: expecting prototype for dfl_fme_destroy_bridge(). Prototype was for dfl_fme_destroy_bridges() instead
+
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Cc: Wu Hao <hao.wu@intel.com>
+Cc: Tom Rix <trix@redhat.com>
+Cc: Moritz Fischer <mdf@kernel.org>
+Cc: Xu Yilun <yilun.xu@intel.com>
+Cc: linux-fpga@vger.kernel.org
+Acked-by: Xu Yilun <yilun.xu@intel.com>
+Link: https://lore.kernel.org/r/20230113063720.10668-1-rdunlap@infradead.org
+Signed-off-by: Xu Yilun <yilun.xu@intel.com>
+(cherry picked from commit 782d8e61b5d6c15c5b7cfd5726da1f20f7cc8366)
+---
+ drivers/fpga/dfl-fme-pr.c | 2 +-
+ drivers/fpga/dfl.c        | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/fpga/dfl-fme-pr.c b/drivers/fpga/dfl-fme-pr.c
+index c03bc5aff397..11d5c75d4c14 100644
+--- a/drivers/fpga/dfl-fme-pr.c
++++ b/drivers/fpga/dfl-fme-pr.c
+@@ -159,7 +159,7 @@ static int fme_pr(struct platform_device *pdev, unsigned long arg)
+ 
+ /**
+  * dfl_fme_create_mgr - create fpga mgr platform device as child device
+- *
++ * @feature: sub feature info
+  * @pdata: fme platform_device's pdata
+  * @feature: the dfl fme PR sub feature
+  *
+diff --git a/drivers/fpga/dfl.c b/drivers/fpga/dfl.c
+index 7ca3f0ee8d32..1bbef8893ebe 100644
+--- a/drivers/fpga/dfl.c
++++ b/drivers/fpga/dfl.c
+@@ -46,7 +46,7 @@ static const char *dfl_pdata_key_strings[DFL_ID_MAX] = {
+ };
+ 
+ /**
+- * dfl_dev_info - dfl feature device information.
++ * struct dfl_dev_info - dfl feature device information.
+  * @name: name string of the feature platform device.
+  * @dfh_id: id value in Device Feature Header (DFH) register by DFL spec.
+  * @id: idr id of the feature dev.
+@@ -68,7 +68,7 @@ static struct dfl_dev_info dfl_devs[] = {
+ };
+ 
+ /**
+- * dfl_chardev_info - chardev information of dfl feature device
++ * struct dfl_chardev_info - chardev information of dfl feature device
+  * @name: nmae string of the char device.
+  * @devt: devt of the char device.
+  */

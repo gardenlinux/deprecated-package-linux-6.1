@@ -1,0 +1,26 @@
+From e7433a0542c431b87bd362fb347728e596cae3bd Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Fri, 31 Mar 2023 15:45:29 -0700
+Subject: [PATCH] fpga: m10bmc-sec: Fix error return in power_on_image_store
+
+If the kmemdup_nul() fails to allocate memory for tokens in the
+power_on_image_store() function then return the error immediately.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/fpga/intel-m10-bmc-sec-update.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/fpga/intel-m10-bmc-sec-update.c b/drivers/fpga/intel-m10-bmc-sec-update.c
+index 9e8f0b7d321c..544015356f7d 100644
+--- a/drivers/fpga/intel-m10-bmc-sec-update.c
++++ b/drivers/fpga/intel-m10-bmc-sec-update.c
+@@ -1076,7 +1076,7 @@ power_on_image_store(struct device *dev,
+ 
+ 	tokens = kmemdup_nul(buf, count, GFP_KERNEL);
+ 	if (!tokens)
+-		ret = -ENOMEM;
++		return -ENOMEM;
+ 
+ 	ret = fpga_images(sec, tokens, images);
+ 	if (ret)

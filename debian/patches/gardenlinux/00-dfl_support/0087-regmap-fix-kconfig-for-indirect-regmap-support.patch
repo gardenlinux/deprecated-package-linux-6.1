@@ -1,0 +1,27 @@
+From 145a6ad031badf41219541c1f389a6e80ab13bfe Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Fri, 10 Mar 2023 16:01:20 -0800
+Subject: [PATCH] regmap: fix kconfig for indirect regmap support
+
+The standard convention is to include new REGMAP options in the default if
+condition for "config REGMAP". This commit adds the missing condition to
+the if-statement.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/base/regmap/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/base/regmap/Kconfig b/drivers/base/regmap/Kconfig
+index 4ea590604f8d..665129f3cd8e 100644
+--- a/drivers/base/regmap/Kconfig
++++ b/drivers/base/regmap/Kconfig
+@@ -4,7 +4,7 @@
+ # subsystems should select the appropriate symbols.
+ 
+ config REGMAP
+-	default y if (REGMAP_I2C || REGMAP_SPI || REGMAP_SPMI || REGMAP_W1 || REGMAP_AC97 || REGMAP_MMIO || REGMAP_IRQ || REGMAP_SOUNDWIRE || REGMAP_SOUNDWIRE_MBQ || REGMAP_SCCB || REGMAP_I3C || REGMAP_SPI_AVMM || REGMAP_MDIO)
++	default y if (REGMAP_I2C || REGMAP_SPI || REGMAP_SPMI || REGMAP_W1 || REGMAP_AC97 || REGMAP_MMIO || REGMAP_IRQ || REGMAP_SOUNDWIRE || REGMAP_SOUNDWIRE_MBQ || REGMAP_SCCB || REGMAP_I3C || REGMAP_SPI_AVMM || REGMAP_MDIO || REGMAP_INDIRECT_REGISTER)
+ 	select IRQ_DOMAIN if REGMAP_IRQ
+ 	select MDIO_BUS if REGMAP_MDIO
+ 	bool

@@ -1,0 +1,33 @@
+From 3f448e20af2c90c2d8bbbb2dbc7d6c2d4e9ec798 Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Mon, 6 Mar 2023 16:05:32 -0800
+Subject: [PATCH] mfd: intel-m10-bmc: Align object list in makefile
+
+Change the alignment of the CONFIG_MFD_INTEL_M10_BMC* elements of the
+makefile to match with what is upstream. This will minimize conflicts
+on future cherry-picks.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/mfd/Makefile | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/mfd/Makefile b/drivers/mfd/Makefile
+index 18debc578e83..ad96a85c64dc 100644
+--- a/drivers/mfd/Makefile
++++ b/drivers/mfd/Makefile
+@@ -272,10 +272,10 @@ obj-$(CONFIG_MFD_QCOM_PM8008)	+= qcom-pm8008.o
+ obj-$(CONFIG_SGI_MFD_IOC3)	+= ioc3.o
+ obj-$(CONFIG_MFD_SIMPLE_MFD_I2C)	+= simple-mfd-i2c.o
+ 
+-obj-$(CONFIG_MFD_INTEL_M10_BMC_CORE)	+= intel-m10-bmc-core.o
+-obj-$(CONFIG_MFD_INTEL_M10_BMC_LOG)	+= intel-m10-bmc-log.o
+-obj-$(CONFIG_MFD_INTEL_M10_BMC_SPI)	+= intel-m10-bmc-spi.o
+-obj-$(CONFIG_MFD_INTEL_M10_BMC_PMCI)	+= intel-m10-bmc-pmci.o
++obj-$(CONFIG_MFD_INTEL_M10_BMC_CORE)   += intel-m10-bmc-core.o
++obj-$(CONFIG_MFD_INTEL_M10_BMC_LOG)    += intel-m10-bmc-log.o
++obj-$(CONFIG_MFD_INTEL_M10_BMC_SPI)    += intel-m10-bmc-spi.o
++obj-$(CONFIG_MFD_INTEL_M10_BMC_PMCI)   += intel-m10-bmc-pmci.o
+ 
+ obj-$(CONFIG_MFD_ATC260X)	+= atc260x-core.o
+ obj-$(CONFIG_MFD_ATC260X_I2C)	+= atc260x-i2c.o
