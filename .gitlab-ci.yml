@@ -24,7 +24,6 @@ build arm64:
 include:
 - local: .gitlab/ci/source.yml
 - local: .gitlab/ci/test.yml
-- local: .gitlab/ci/test-config.yml
 - project: gardenlinux/gardenlinux-package-build
   file:
   - pipeline/workflow.yml
