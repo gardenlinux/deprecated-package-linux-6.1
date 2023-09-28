@@ -28,8 +28,17 @@ ORIG_TAR_CREATE=
 mkdir $OUTPUT_DIR
 echo '### cloning the reference kernel'
 git clone --quiet --depth 1 --branch $DEBIAN_REF $DEBIAN_REPO ${OUTPUT_DIR}/linux-ref
-echo '### cloning the latest and greatest debian release environment'
-git clone --quiet --depth 1 $DEBIAN_REPO ${OUTPUT_DIR}/${SOURCE_NAME}
+
+if [[ ${DEBIAN_MAIN_REF:-} ]]; then
+  echo '### Using a pinned debian release environment'
+  git clone --quiet $DEBIAN_REPO ${OUTPUT_DIR}/${SOURCE_NAME}
+  pushd ${OUTPUT_DIR}/${SOURCE_NAME}
+  git checkout $DEBIAN_MAIN_REF
+  popd
+else
+  echo '### cloning the latest and greatest debian release environment'
+  git clone --quiet --depth 1 $DEBIAN_REPO ${OUTPUT_DIR}/${SOURCE_NAME}
+fi
 
 echo '### pulling existing orig via pristine-lfs'
 git fetch --quiet --depth 1 origin pristine-lfs
