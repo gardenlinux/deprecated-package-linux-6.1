@@ -39,3 +39,4 @@ version="$version_orig-0"
 
 cp -r debian/. "$dir/src/debian/."
 apply_patches
+version_suffix=gardenlinux0
