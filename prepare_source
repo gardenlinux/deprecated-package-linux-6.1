@@ -1,0 +1,41 @@
+pkg=linux
+version_orig=6.1.69
+version="$version_orig-0"
+
+(
+	kernel_repo=https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
+	debian_repo=https://salsa.debian.org/kernel-team/linux.git
+	debian_kernel_version_ref="debian/6.1.8-1"
+	debian_build_env_ref=e8e43f8550743f0f5603b6bb4f551f3c35416d88
+
+	tmp_dir="$(mktemp -d)"
+	trap 'cd / && rm -rf "$tmp_dir"' EXIT
+	cd "$tmp_dir"
+
+	apt-get install --no-install-recommends -y python3-debian
+
+	mkdir git_workdir
+	cd git_workdir
+	git init
+	git remote add origin "$debian_repo"
+	git fetch --depth 1 origin "$debian_kernel_version_ref"
+	git branch kernel_version FETCH_HEAD
+	git fetch --depth 1 origin "$debian_build_env_ref"
+	git branch build_env FETCH_HEAD
+
+	git checkout kernel_version
+	debian/bin/genorig.py --override-version "$version_orig" "$kernel_repo"
+	git clean -fdx
+
+	auto_decompress ../*.orig.tar.* | tee "$dir/orig.tar" | tar --extract --strip-components 1 --directory "$dir/src"
+
+	git checkout build_env
+	cp -r debian "$dir/src/"
+
+	git checkout kernel_version
+	rm -r "$dir/src/debian/"{changelog,config,patches,patches-rt,rules.d}
+	cp -r debian/{config,patches,patches-rt,rules.d} "$dir/src/debian/"
+)
+
+cp -r debian/. "$dir/src/debian/."
+apply_patches
