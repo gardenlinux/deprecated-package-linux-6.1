@@ -5,7 +5,7 @@ version="$version_orig-0"
 (
 	kernel_repo=https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
 	debian_repo=https://salsa.debian.org/kernel-team/linux.git
-	debian_kernel_version_ref="debian/6.1.8-1"
+	debian_kernel_version_ref="debian/$version_orig-1"
 	debian_build_env_ref=e8e43f8550743f0f5603b6bb4f551f3c35416d88
 
 	tmp_dir="$(mktemp -d)"
